@@ -1,1 +1,7 @@
 Cargo.lock
+**/target/*
+examples/csr/pkg/.gitignore
+examples/csr/pkg/README.md
+examples/csr/pkg/csr_example_bg.wasm.d.ts
+examples/csr/pkg/csr_example.d.ts
+examples/csr/pkg/package.json

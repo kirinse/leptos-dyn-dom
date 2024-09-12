@@ -24,7 +24,7 @@ http = "1"
 # need to fix the version so that it works with thaw 0.4.0-beta2
 reactive_graph = { version="=0.1.0-beta4",optional=true }
 
-leptos-dyn-dom = { path="../../leptos-dyn-dom", version="0.1.0" }
+leptos-dyn-dom = { path="../../", version="0.1.0" }
 thaw = "0.4.0-beta2"
 
 [features]

@@ -63,11 +63,16 @@ fn HomePage() -> impl IntoView {
 async fn get_some_html() -> Result<String,ServerFnError> {
     Ok(r#"
     <div>
-        <div>Some HTML</div>
-        <span data-replace-with-leptos>
-            This text should be wrapped in a red border, and, for good measure, show something on hover.
-        </span>
-        <div>This text should not</div>
+      <div>Some HTML</div>
+      <div data-replace-with-leptos>
+          This text should be wrapped in a red border, and, for good measure, show something on hover.<br>
+          We can also nest this:
+          <div data-replace-with-leptos>
+            Here is another div that should also get bounded the same way
+          </div>
+          and we're back to the first level.
+        </div>
+      <div>This text should not be touched at all.</div>
     </div>"#.to_string())
 }
 
