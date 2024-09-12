@@ -101,7 +101,7 @@ pub use dom::hydrate_node;
 /// Re-exports `web_sys::Element` for convenience.
 pub use web_sys::Element;
 
-use leptos::{ html::Span, prelude::*};
+use leptos::{ html::{ElementType, Span}, math::Mrow, prelude::*};
 use tachys::view::any_view::AnyView;
 
 mod dom;
@@ -115,6 +115,15 @@ pub fn DomChildren(orig:OriginalChildren) -> impl IntoView {
     view!(<span node_ref=span/>)
 }
 
+/// Like [`DomChildren`], but using `<mrow>` instead of `<span>`.
+#[component]
+pub fn DomChildrenMath(orig:OriginalChildren) -> impl IntoView {
+    let span = NodeRef::<Mrow>::new();
+    replace(span,orig,Option::<for<'a> fn(&'a _) -> _>::None);
+    view!(<mrow node_ref=span/>)
+}
+
+
 /// A component that takes the [`OriginalChildren`] of some preexistent DOM node and a continuation function `f`, and renders them into the DOM. Additionally, `f` is called on every child of the replaced element, to potentially "hydrate" them further.
 #[component]
 pub fn DomChildrenCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(orig:OriginalChildren,f:F) -> impl IntoView {
@@ -123,8 +132,20 @@ pub fn DomChildrenCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(ori
     view!(<span node_ref=span/>)
 }
 
+/// Like [`DomChildrenCont`], but using `<mrow>` instead of `<span>`.
+#[component]
+pub fn DomChildrenContMath<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(orig:OriginalChildren,f:F) -> impl IntoView {
+    let span = NodeRef::<Mrow>::new();
+    replace(span,orig,Some(f));
+    view!(<mrow node_ref=span/>)
+}
+
 // This function does the actual work
-fn replace(span:NodeRef<Span>,_children:OriginalChildren,_f:Option<impl (Fn(&Element) -> Option<AnyView<Dom>>)+'static>) {
+fn replace<E>(span:NodeRef<E>,_children:OriginalChildren,_f:Option<impl (Fn(&Element) -> Option<AnyView<Dom>>)+'static>)
+where
+    E: ElementType + 'static,
+    E::Output: web_sys::wasm_bindgen::JsCast + AsRef<web_sys::Node> + Clone + 'static,
+    {
   // we use an effect to start iterating over the children only after the provided span has been mounted
   Effect::new(move |_| {
     if let Some(_span) = span.get() {
@@ -134,15 +155,16 @@ fn replace(span:NodeRef<Span>,_children:OriginalChildren,_f:Option<impl (Fn(&Ele
         // OriginalChildren just wraps around a SendWrapper<Vec<Node>>.
         // As far as I can tell, the effect seems to always be called on the same thread that took the children anyway...
         if _children.0.valid() { // <- i.e. this seems to always be true
+          let span:&web_sys::Node = _span.as_ref();
           let children = (*_children.0).clone();
-          let p = _span.parent_node().unwrap();
+          let p = span.parent_node().unwrap();
           for c in children {
-            let _ = p.insert_before(&c, Some(&_span));
+            let _ = p.insert_before(&c, Some(span));
             if let Some(f) = &_f { 
               // we now recurse over the children. This function does the actual insertion of components into the DOM.
               dom::hydrate_node(c, f) }
           }
-          let _ = p.remove_child(&_span);
+          let _ = p.remove_child(span);
         }
       }
     }
@@ -174,6 +196,33 @@ pub fn DomStringCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:
       }
     });
     view!(<span node_ref=span inner_html=html/>)
+}
+
+
+/// Like [`DomStringCont`], but using `<mrow>` instead of `<span>`.
+#[component]
+pub fn DomStringContMath<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:String,_f:F) -> impl IntoView {
+    let span = NodeRef::<Mrow>::new();
+    // Analogous to the above
+    Effect::new(move |_| {
+      if let Some(_span) = span.get() {
+        #[cfg(any(feature="csr",feature="hydrate"))]
+        {
+          let span: web_sys::Node = _span.into();
+          dom::hydrate_node(span.clone(), &|e| {
+            // avoid infinite recursion
+            if **e == span { return None }
+            _f(e)
+          });
+          let p = span.parent_node().unwrap();
+          while let Some(c) = span.child_nodes().item(0) {
+            let _ = p.insert_before(&c, Some(&span));
+          }
+          let _ = p.remove_child(&span);
+        }
+      }
+    });
+    view!(<mrow node_ref=span inner_html=html/>)
 }
 
 // need some check to not iterate over the entire body multiple times for some reason.
