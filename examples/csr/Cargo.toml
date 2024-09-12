@@ -1,0 +1,26 @@
+[package]
+name = "csr-example"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = 2
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+[dependencies]
+leptos-dyn-dom = { path = "../../leptos-dyn-dom",version="0.1.0",features = ["csr"] }
+
+wasm-bindgen = "0.2"
+leptos = { version = "0.7.0-beta4", features = ["csr"] }
+console_error_panic_hook = "0.1.7"
+wee_alloc = "*"
+thaw = "0.4.0-beta2"
+
+# need to fix the version so that it works with thaw 0.4.0-beta2
+reactive_graph = { version="=0.1.0-beta4",optional=true }
