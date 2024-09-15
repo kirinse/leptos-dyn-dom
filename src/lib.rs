@@ -146,19 +146,37 @@ where
     E: ElementType + 'static,
     E::Output: web_sys::wasm_bindgen::JsCast + AsRef<web_sys::Node> + Clone + 'static,
     {
+
+      let _done = RwSignal::<Option<send_wrapper::SendWrapper<Vec<web_sys::Node>>>>::new(None);
+      #[cfg(any(feature="csr",feature="hydrate"))]
+      if let Some(f) = &_f {
+        //leptos::logging::log!("hydrating early!");
+        assert!(_children.0.valid());
+        dom::hydrate_node((**_children.0).clone(),&|e| if *e == *_children.0 {None} else {f(e)});
+        _done.set(Some(send_wrapper::SendWrapper::new(_children.clone_children()))); 
+      }
+
+
   // we use an effect to start iterating over the children only after the provided span has been mounted
   Effect::new(move |_| {
     if let Some(_span) = span.get() {
       // in SSR, this should never be called anyway
       #[cfg(any(feature="csr",feature="hydrate"))]
       {
-        // OriginalChildren just wraps around a SendWrapper<Vec<Node>>.
-        // As far as I can tell, the effect seems to always be called on the same thread that took the children anyway...
-        if _children.0.valid() { // <- i.e. this seems to always be true
-          let span:&web_sys::Node = _span.as_ref();
-          let children = (*_children.0).clone();
-          let p = span.parent_node().unwrap();
-          for c in children {
+        assert!(_children.0.valid());
+        let span:&web_sys::Node = _span.as_ref();
+        let p = span.parent_node().unwrap();
+        if let Some(children) = _done.get() {
+          for c in &*children {
+            let _ = p.insert_before(c, Some(span));
+            /*if let Some(f) = &_f { 
+              // we now recurse over the children. This function does the actual insertion of components into the DOM.
+              dom::hydrate_node(c, f) }*/
+          }
+          let _ = p.remove_child(span);
+        } else {
+          //leptos::logging::log!("hydrating late!");
+          for c in _children.clone_children() {
             let _ = p.insert_before(&c, Some(span));
             if let Some(f) = &_f { 
               // we now recurse over the children. This function does the actual insertion of components into the DOM.

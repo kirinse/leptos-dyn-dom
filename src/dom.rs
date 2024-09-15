@@ -12,22 +12,34 @@ use wasm_bindgen::JsCast;
 pub struct OriginalChildren(
   // Server side, this is just an empty struct, since there's no DOM anyway.
   #[cfg(any(feature="csr",feature="hydrate"))]
-  pub(crate) send_wrapper::SendWrapper<Vec<Node>>
+  pub(crate) send_wrapper::SendWrapper<Element>
 );
 impl OriginalChildren {
   pub fn new(_e:&Element) -> Self {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
       // it's annoying that this seems to be how to take all the children...
+      /*
       let mut vec = Vec::new();
       while let Some(c) = _e.child_nodes().item(0) {
         let _ = _e.remove_child(&c);
         vec.push(c);
       }
-      OriginalChildren(send_wrapper::SendWrapper::new(vec))
+       */
+      OriginalChildren(send_wrapper::SendWrapper::new(_e.clone()))
     }
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { OriginalChildren() }
+  }
+  #[cfg(any(feature="csr",feature="hydrate"))]
+  pub(crate) fn clone_children(&self) -> Vec<Node> {
+    assert!(self.0.valid());
+    let mut vec = Vec::new();
+    let mut i = 0;
+    while let Some(c) = self.0.child_nodes().item(i) {
+      vec.push(c);i+=1;
+    }
+    vec
   }
 }
 
