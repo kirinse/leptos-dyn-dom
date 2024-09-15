@@ -9,10 +9,10 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 axum = { version = "0.7", optional = true }
 console_error_panic_hook = "0.1"
-leptos = { version = "=0.7.0-beta4" }
-leptos_axum = { version = "=0.7.0-beta4", optional = true }
-leptos_meta = { version = "=0.7.0-beta4" }
-leptos_router = { version = "=0.7.0-beta4" }
+leptos = { version = "0.7.0-beta5" }
+leptos_axum = { version = "0.7.0-beta5", optional = true }
+leptos_meta = { version = "0.7.0-beta5" }
+leptos_router = { version = "0.7.0-beta5" }
 tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
 tower = { version = "0.4", optional = true }
 tower-http = { version = "0.5", features = ["fs"], optional = true }
@@ -21,11 +21,8 @@ thiserror = "1"
 tracing = { version = "0.1", optional = true }
 http = "1"
 
-# need to fix the version so that it works with thaw 0.4.0-beta2
-reactive_graph = { version="=0.1.0-beta4",optional=true }
-
 leptos-dyn-dom = { path="../../", version="0.1.0" }
-thaw = "0.4.0-beta2"
+thaw = "0.4.0-beta3"
 
 [features]
 hydrate = ["leptos/hydrate","leptos-dyn-dom/hydrate","thaw/hydrate"]

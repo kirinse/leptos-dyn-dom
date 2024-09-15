@@ -10,5 +10,5 @@ hydrate = ["leptos/hydrate","dep:wasm-bindgen"]
 [dependencies]
 wasm-bindgen = {version="0.2",optional=true}
 web-sys = { version = "0.3.70", features = ["Document", "Element","NodeList"] }
-leptos = { version = "0.7.0-beta4" }
+leptos = { version = "0.7.0-beta5" }
 send_wrapper = "0.6.0"
