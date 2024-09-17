@@ -268,15 +268,21 @@ pub fn hydrate_body<N:IntoView>(
         v(b)
       });
   } else {
-    // maybe this isn't even necessary? If it is, we apparently can't use an FnOnce here, since Closure requires at least FnMut.
-    /*  
-    let closure = Closure::wrap(Box::new(move |_:Event| {
-      mount_to_body(move || {
-        v(leptos::tachys::dom::body().into())
-      })
+    use wasm_bindgen::JsCast;
+    let fun = std::rc::Rc::new(std::cell::RefCell::new(Some(v)));
+    let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move |_:web_sys::Event| {
+      if let Some(f) = fun.borrow_mut().take() {
+        let body = leptos::tachys::dom::body();
+        let body = OriginalChildren::new(&body);
+        mount_to_body(move || {
+          f(body)
+        })
+      }
     }) as Box<dyn FnMut(_)>);
      document.add_event_listener_with_callback("DOMContentLoaded", closure.as_ref().unchecked_ref()).unwrap();
      closure.forget();
+    // maybe this isn't even necessary? If it is, we apparently can't use an FnOnce here, since Closure requires at least FnMut.
+    /*  
      */
   }
 }
