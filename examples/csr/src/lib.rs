@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos::web_sys::Element;
 use tachys::view::any_view::AnyView;
 use wasm_bindgen::prelude::*;
 
@@ -14,34 +15,39 @@ pub fn run() {
 }
 
 #[component]
-fn MainBody(orig: OriginalChildren) -> impl IntoView {
+fn MainBody(orig: OriginalNode) -> impl IntoView {
     use thaw::ConfigProvider;
     leptos::logging::log!("Here (body)");
     view! {
         <ConfigProvider>
-            <DomChildrenCont orig f=replace />
+            {orig.children_into_view_cont(replace)}
+            //<DomChildrenCont orig cont=replace />
         </ConfigProvider>
     }
 }
 
 #[component]
-fn MyReplacementComponent(orig:OriginalChildren) -> impl IntoView {
+fn MyReplacementComponent(children: Children) -> impl IntoView {
     use thaw::*;
-   view! {
-      <div><div style="border: 1px solid red;width:fit-content;margin:auto">
-        <Popover>
-            <PopoverTrigger slot>
-                <DomChildrenCont orig f=replace/>
-            </PopoverTrigger>
-            <div style="border: 1px solid black;font-weight:bold;">"IT WORKS!"</div>
-        </Popover>
-     </div></div>
-  }
+    view! {
+        <div><div style="border: 1px solid red;width:fit-content;margin:auto">
+          <Popover>
+              <PopoverTrigger slot>
+                  {children()}
+                  //<DomChildrenCont orig cont=replace/>
+              </PopoverTrigger>
+              <div style="border: 1px solid black;font-weight:bold;">"IT WORKS!"</div>
+          </Popover>
+       </div></div>
+    }
 }
 
-fn replace(e:&Element) -> Option<AnyView<Dom>> {
+fn replace(e: &Element) -> Option<AnyView<Dom>> {
     e.get_attribute("data-replace-with-leptos").map(|_| {
-        let orig = OriginalChildren::new(e);
-        view!(<MyReplacementComponent orig/>).into_any()
+        let orig: OriginalNode = e.clone().into();
+        view!(<MyReplacementComponent>
+            {orig.children_into_view_cont(replace)}
+            </MyReplacementComponent>)
+        .into_any()
     })
 }

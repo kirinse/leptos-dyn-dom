@@ -9,7 +9,7 @@
  * Say we want to replace all elements with the attribute `data-replace-with-leptos` with a leptos component `MyReplacementComponent`, that simply wraps the original children in a `div` with a solid red border. This component would roughly look like this:
  * ```
  * #[component]
- * fn MyReplacementComponent(orig:OriginalChildren) -> impl IntoView {
+ * fn MyReplacementComponent(orig:OriginalNode) -> impl IntoView {
  *    view! {
  *       <div style="border: 1px solid red;">
  *         <DomChildren orig />
@@ -27,7 +27,7 @@
  * 
  * ```
  *  #[component]
- *  fn MainBody(orig:OriginalChildren) -> impl IntoView {
+ *  fn MainBody(orig:OriginalNode) -> impl IntoView {
  *     // set up some signals, provide context etc.
  *     view!{
  *       <DomChildren orig/>
@@ -47,24 +47,24 @@
  * ```
  *  fn replace(e:&Element) -> Option<AnyView<Dom>> {
  *    e.get_attribute("data-replace-with-leptos").map(|_| {
- *      let orig = OriginalChildren::new(e);
+ *      let orig = e.clone().into();
  *      view!(<MyReplacementComponent orig/>).into_any()
  *    })
  *  }
  * 
  *  #[component]
- *  fn MainBody(orig:OriginalChildren) -> impl IntoView {
+ *  fn MainBody(orig:OriginalNode) -> impl IntoView {
  *     // set up some signals, provide context etc.
  *     view!{
- *       <DomChildrenCont orig f=replace/>
+ *       <DomChildrenCont orig cont=replace/>
  *     }
  *  }
  * 
  * #[component]
- * fn MyReplacementComponent(orig:OriginalChildren) -> impl IntoView {
+ * fn MyReplacementComponent(orig:OriginalNode) -> impl IntoView {
  *    view! {
  *       <div style="border: 1px solid red;">
- *         <DomChildrenCont orig f=replace/>
+ *         <DomChildrenCont orig cont=replace/>
  *      </div>
  *   }
  * }
@@ -85,7 +85,7 @@
  *   // e.g. some API call
  *   let html = "<div data-replace-with-leptos>...</div>".to_string();
  *   view! {
- *     <DomStringCont html f=replace/>
+ *     <DomStringCont html cont=replace/>
  *   }
  * }
  * ```
@@ -93,154 +93,125 @@
  * See the `examples/ssr` directory for a full example.
 */
 
-pub use dom::OriginalChildren;
+mod node;
+mod dom;
+
+pub use node::OriginalNode;
 
 #[cfg(any(feature="csr",feature="hydrate"))]
 pub use dom::hydrate_node;
 
-/// Re-exports `web_sys::Element` for convenience.
-pub use web_sys::Element;
-
-use leptos::{ html::{ElementType, Span}, math::Mrow, prelude::*};
+use leptos::{web_sys::Element, html::{ElementType, Span}, math::Mrow, prelude::*};
 use tachys::view::any_view::AnyView;
+use web_sys::HtmlElement;
 
-mod dom;
 
 
-/// A component that takes the [`OriginalChildren`] of some preexistent DOM node, and renders them into the DOM.
+/// A component that inserts the  children of some [`OriginalNode`] 
+/// and renders them into the DOM.
 #[component]
-pub fn DomChildren(orig:OriginalChildren) -> impl IntoView {
-    let span = NodeRef::<Span>::new();
-    replace(span,orig,Option::<for<'a> fn(&'a _) -> _>::None);
-    view!(<span node_ref=span/>)
+pub fn DomChildren(orig:OriginalNode) -> impl IntoView {
+    orig.children_into_view()
 }
-
-/// Like [`DomChildren`], but using `<mrow>` instead of `<span>`.
-#[component]
-pub fn DomChildrenMath(orig:OriginalChildren) -> impl IntoView {
-    let span = NodeRef::<Mrow>::new();
-    replace(span,orig,Option::<for<'a> fn(&'a _) -> _>::None);
-    view!(<mrow node_ref=span/>)
-}
-
 
 /// A component that takes the [`OriginalChildren`] of some preexistent DOM node and a continuation function `f`, and renders them into the DOM. Additionally, `f` is called on every child of the replaced element, to potentially "hydrate" them further.
 #[component]
-pub fn DomChildrenCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(orig:OriginalChildren,f:F) -> impl IntoView {
-    let span = NodeRef::<Span>::new();
-    replace(span,orig,Some(f));
-    view!(<span node_ref=span/>)
+pub fn DomChildrenCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(orig:OriginalNode,cont:F) -> impl IntoView {
+    orig.children_into_view_cont(cont)
 }
 
-/// Like [`DomChildrenCont`], but using `<mrow>` instead of `<span>`.
+/// A component that calls `f` on all children of `orig`
+/// to potentially "hydrate" them further, and reinserts the original
+/// element into the DOM.
 #[component]
-pub fn DomChildrenContMath<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(orig:OriginalChildren,f:F) -> impl IntoView {
-    let span = NodeRef::<Mrow>::new();
-    replace(span,orig,Some(f));
-    view!(<mrow node_ref=span/>)
+pub fn DomCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(#[allow(unused_variables)]orig:OriginalNode,#[allow(unused_variables)]cont:F) -> impl IntoView {
+    orig.into_view_cont(cont)
 }
-
-// This function does the actual work
-fn replace<E>(span:NodeRef<E>,_children:OriginalChildren,_f:Option<impl (Fn(&Element) -> Option<AnyView<Dom>>)+'static>)
-where
-    E: ElementType + 'static,
-    E::Output: web_sys::wasm_bindgen::JsCast + AsRef<web_sys::Node> + Clone + 'static,
-    {
-
-      let _done = RwSignal::<Option<send_wrapper::SendWrapper<Vec<web_sys::Node>>>>::new(None);
-      #[cfg(any(feature="csr",feature="hydrate"))]
-      if let Some(f) = &_f {
-        //leptos::logging::log!("hydrating early!");
-        assert!(_children.0.valid());
-        dom::hydrate_node((**_children.0).clone(),&|e| if *e == *_children.0 {None} else {f(e)});
-        _done.set(Some(send_wrapper::SendWrapper::new(_children.clone_children()))); 
-      }
-
-
-  // we use an effect to start iterating over the children only after the provided span has been mounted
-  Effect::new(move |_| {
-    if let Some(_span) = span.get() {
-      // in SSR, this should never be called anyway
-      #[cfg(any(feature="csr",feature="hydrate"))]
-      {
-        assert!(_children.0.valid());
-        let span:&web_sys::Node = _span.as_ref();
-        let p = span.parent_node().unwrap();
-        if let Some(children) = _done.get() {
-          for c in &*children {
-            let _ = p.insert_before(c, Some(span));
-            /*if let Some(f) = &_f { 
-              // we now recurse over the children. This function does the actual insertion of components into the DOM.
-              dom::hydrate_node(c, f) }*/
-          }
-          let _ = p.remove_child(span);
-        } else {
-          //leptos::logging::log!("hydrating late!");
-          for c in _children.clone_children() {
-            let _ = p.insert_before(&c, Some(span));
-            if let Some(f) = &_f { 
-              // we now recurse over the children. This function does the actual insertion of components into the DOM.
-              dom::hydrate_node(c, f) }
-          }
-          let _ = p.remove_child(span);
-        }
-      }
-    }
-  });
-}
-
 
 /// A component that renders a string of valid HTML, and then calls `f` on all the DOM nodes resulting from that to potentially "hydrate" them further.
 #[component]
-pub fn DomStringCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:String,_f:F) -> impl IntoView {
-    let span = NodeRef::<Span>::new();
-    // Analogous to the above
-    Effect::new(move |_| {
-      if let Some(_span) = span.get() {
-        #[cfg(any(feature="csr",feature="hydrate"))]
-        {
-          let span: web_sys::Node = _span.into();
-          dom::hydrate_node(span.clone(), &|e| {
-            // avoid infinite recursion
-            if **e == span { return None }
-            _f(e)
-          });
-          let p = span.parent_node().unwrap();
-          while let Some(c) = span.child_nodes().item(0) {
-            let _ = p.insert_before(&c, Some(&span));
-          }
-          let _ = p.remove_child(&span);
-        }
-      }
-    });
-    view!(<span node_ref=span inner_html=html/>)
+pub fn DomStringCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:String,cont:F) -> impl IntoView {
+    let rf = NodeRef::<Span>::new();
+    replace_string_effect(rf,|e| (**e).clone(), cont);
+    view!(<span node_ref=rf inner_html=html/>)
 }
-
 
 /// Like [`DomStringCont`], but using `<mrow>` instead of `<span>`.
 #[component]
-pub fn DomStringContMath<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:String,_f:F) -> impl IntoView {
-    let span = NodeRef::<Mrow>::new();
-    // Analogous to the above
-    Effect::new(move |_| {
-      if let Some(_span) = span.get() {
-        #[cfg(any(feature="csr",feature="hydrate"))]
-        {
-          let span: web_sys::Node = _span.into();
-          dom::hydrate_node(span.clone(), &|e| {
-            // avoid infinite recursion
-            if **e == span { return None }
-            _f(e)
-          });
-          let p = span.parent_node().unwrap();
-          while let Some(c) = span.child_nodes().item(0) {
-            let _ = p.insert_before(&c, Some(&span));
+pub fn DomStringContMath<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:String,cont:F) -> impl IntoView {
+    let rf = NodeRef::<Mrow>::new();
+    replace_string_effect(rf,|e| e, cont);
+    view!(<mrow node_ref=rf inner_html=html/>)
+}
+
+// ------------------------------------------------------------
+
+#[cfg(any(feature="csr",feature="hydrate"))]
+pub(crate) fn on_mount(mut node:Element,mut then:impl FnMut(&mut Element) + 'static) {
+  use wasm_bindgen::JsCast;
+  if node.parent_element().is_some() {
+    then(&mut node);
+  } else {
+    let observer = std::rc::Rc::new(std::cell::Cell::new(Option::<web_sys::MutationObserver>::None));
+    let obs = observer.clone();
+    let callback : wasm_bindgen::prelude::Closure<dyn FnMut(_,_)> = wasm_bindgen::closure::Closure::new(
+      move |mutations: web_sys::js_sys::Array,_:web_sys::MutationObserver| {
+        for i in 0..mutations.length() {
+          let mutation: Result<web_sys::MutationRecord,_> = mutations.get(i).dyn_into();
+          if let Ok(mutation) = mutation {
+            let added_nodes = mutation.added_nodes();
+            for j in 0..added_nodes.length() {
+              let added_node = added_nodes.get(j);
+              if added_node.map(|n| n == *node).unwrap_or_default() {
+                then(&mut node);
+                if let Some(o) = obs.take() {
+                  o.disconnect();
+                }
+                return
+              }
+            }
           }
-          let _ = p.remove_child(&span);
         }
-      }
     });
-    view!(<mrow node_ref=span inner_html=html/>)
+    let obs_init = web_sys::MutationObserverInit::new();
+    obs_init.set_child_list(true);
+    obs_init.set_subtree(true);
+    let obs = web_sys::MutationObserver::new(callback.as_ref().unchecked_ref()).expect("Error creating MutationObserver");
+    obs.observe_with_options(&document().body().unwrap(), &obs_init).expect("Error initializing MutationObserver");
+    observer.set(Some(obs));
+    callback.forget();
+  }
+}
+
+#[allow(unused_variables)]
+fn replace_string_effect<E,F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(rf:NodeRef<E>,conv:impl Fn(E::Output) -> Element + 'static,cont:F)
+where
+    E: ElementType + 'static,
+    E::Output:leptos::wasm_bindgen::JsCast + Clone + 'static {
+  Effect::new(move |_| if let Some(node) = rf.get() {
+    #[cfg(any(feature="csr",feature="hydrate"))]
+    {
+      let node = conv(node);
+      dom::hydrate_children((*node).clone(), &cont);
+      on_mount(node,|node| {
+        while let Some(mut c) = node.child_nodes().item(0) {
+          if !node.insert_before_this(&mut c) {
+            panic!("ERROR: Failed to insert child node!!");
+          }
+        }
+        node.unmount();
+      });
+      
+      /*let parent = node.parent_node().unwrap_or_else(|| {
+        leptos::logging::log!("ERROR leptos-dyn-dom: No parent node found");
+        panic!("ERROR leptos-dyn-dom: No parent node found");
+      });
+      while let Some(c) = node.child_nodes().item(0) {
+        let _ = parent.insert_before(&c, Some(node));
+      }
+      let _ = parent.remove_child(node);*/
+    }
+  });
 }
 
 // need some check to not iterate over the entire body multiple times for some reason.
@@ -253,7 +224,7 @@ static DONE : std::sync::OnceLock<()> = std::sync::OnceLock::new();
 /// `v` is a function that takes the [`OriginalChildren`] of the `<body>` (likely reinserting them somewhere) and returns some leptos view replacing the original children(!) of the body.
 #[cfg(feature="csr")]
 pub fn hydrate_body<N:IntoView>(
-  v:impl FnOnce(OriginalChildren) -> N + 'static
+  v:impl FnOnce(OriginalNode) -> N + 'static
 ) {
   // make sure this only ever happens once.
   if DONE.get().is_some() {return}
@@ -262,10 +233,14 @@ pub fn hydrate_body<N:IntoView>(
   // We check that the DOM has been fully loaded
   let state = document.ready_state();
   if state == "complete" || state == "interactive" {
-    let b = document.body().unwrap();
-    let b = OriginalChildren::new(&b);
+    let b = document.body().unwrap_or_else(|| {
+      leptos::logging::log!("ERROR leptos-dyn-dom: No <body>> node found for span");
+      panic!("ERROR leptos-dyn-dom: No <body>> node found for span");
+    });
+    let b = b.clone().into();
       mount_to_body(move || {
-        v(b)
+        let r = v(b);
+        r
       });
   } else {
     use wasm_bindgen::JsCast;
@@ -273,16 +248,14 @@ pub fn hydrate_body<N:IntoView>(
     let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move |_:web_sys::Event| {
       if let Some(f) = fun.borrow_mut().take() {
         let body = leptos::tachys::dom::body();
-        let body = OriginalChildren::new(&body);
-        mount_to_body(move || {
-          f(body)
+        let body = body.clone().into();
+        mount_to_body(move || { 
+          let r = f(body);
+          r
         })
       }
     }) as Box<dyn FnMut(_)>);
      document.add_event_listener_with_callback("DOMContentLoaded", closure.as_ref().unchecked_ref()).unwrap();
      closure.forget();
-    // maybe this isn't even necessary? If it is, we apparently can't use an FnOnce here, since Closure requires at least FnMut.
-    /*  
-     */
   }
 }

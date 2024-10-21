@@ -60,7 +60,7 @@ fn HomePage() -> impl IntoView {
 }
 
 #[server]
-async fn get_some_html() -> Result<String,ServerFnError> {
+async fn get_some_html() -> Result<String, ServerFnError> {
     Ok(r#"
     <div>
       <div>Some HTML</div>
@@ -80,13 +80,13 @@ use leptos_dyn_dom::*;
 
 #[component]
 fn SomeComplicatedComponent() -> impl IntoView {
-    let html = Resource::new(|| (),|_| get_some_html());
+    let html = Resource::new(|| (), |_| get_some_html());
     view! {
         <Suspense fallback=move || view! { <p>"Loading..."</p> }>
             {move || {
                 html.get().map(|html| html.ok().map( |html| {
-                    view! { <span>"Here:" 
-                        <DomStringCont html _f=replace/>
+                    view! { <span>"Here:"
+                        <DomStringCont html cont=replace/>
                     </span> }
                 }))
             }}
@@ -97,23 +97,23 @@ fn SomeComplicatedComponent() -> impl IntoView {
 use tachys::view::any_view::AnyView;
 
 #[component]
-fn MyReplacementComponent(orig:OriginalChildren) -> impl IntoView {
+fn MyReplacementComponent(orig: OriginalNode) -> impl IntoView {
     use thaw::*;
-   view! {
-      <div><div style="border: 1px solid red;width:fit-content;margin:auto">
-        <Popover>
-            <PopoverTrigger slot>
-                <DomChildrenCont orig f=replace/>
-            </PopoverTrigger>
-            <div style="border: 1px solid black;font-weight:bold;">"IT WORKS!"</div>
-        </Popover>
-     </div></div>
-  }
+    view! {
+        <div><div style="border: 1px solid red;width:fit-content;margin:auto">
+          <Popover>
+              <PopoverTrigger slot>
+                  <DomChildrenCont orig cont=replace/>
+              </PopoverTrigger>
+              <div style="border: 1px solid black;font-weight:bold;">"IT WORKS!"</div>
+          </Popover>
+       </div></div>
+    }
 }
 
-fn replace(e:&Element) -> Option<AnyView<Dom>> {
+fn replace(e: &leptos::web_sys::Element) -> Option<AnyView<Dom>> {
     e.get_attribute("data-replace-with-leptos").map(|_| {
-        let orig = OriginalChildren::new(e);
+        let orig = e.clone().into();
         view!(<MyReplacementComponent orig/>).into_any()
     })
 }
