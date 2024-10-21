@@ -103,9 +103,6 @@ pub use dom::hydrate_node;
 
 use leptos::{web_sys::Element, html::{ElementType, Span}, math::Mrow, prelude::*};
 use tachys::view::any_view::AnyView;
-use web_sys::HtmlElement;
-
-
 
 /// A component that inserts the  children of some [`OriginalNode`] 
 /// and renders them into the DOM.
@@ -239,8 +236,7 @@ pub fn hydrate_body<N:IntoView>(
     });
     let b = b.clone().into();
       mount_to_body(move || {
-        let r = v(b);
-        r
+        v(b)
       });
   } else {
     use wasm_bindgen::JsCast;
@@ -250,8 +246,7 @@ pub fn hydrate_body<N:IntoView>(
         let body = leptos::tachys::dom::body();
         let body = body.clone().into();
         mount_to_body(move || { 
-          let r = f(body);
-          r
+          f(body)
         })
       }
     }) as Box<dyn FnMut(_)>);
