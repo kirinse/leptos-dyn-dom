@@ -73,7 +73,7 @@ impl OriginalNode {
   }
 
   #[cfg(any(feature="csr",feature="hydrate"))]
-  fn do_effect(self) {
+  fn do_effect(self, on_load:Option<RwSignal<bool>>) {
     Effect::new(move |_| {
       let Some(n) = (match self.signal {
         OriginalNodeRef::Html(n) => n.get().map(|n| (**n).clone()),
@@ -85,12 +85,13 @@ impl OriginalNode {
           panic!("ERROR: Failed to insert child node!!");
         }
         n.unmount();
+        if let Some(on_load) = on_load {on_load.set(true)}
       });
     });
   }
 
   #[cfg(any(feature="csr",feature="hydrate"))]
-  fn do_children_effect(self) {
+  fn do_children_effect(self, on_load:Option<RwSignal<bool>>) {
     Effect::new(move |_| {
       let Some(n) = (match self.signal {
         OriginalNodeRef::Html(n) => n.get().map(|n| (**n).clone()),
@@ -104,28 +105,29 @@ impl OriginalNode {
           }
         }
         n.unmount();
+        if let Some(on_load) = on_load {on_load.set(true)}
       });
     });
   }
 
   #[allow(unused_variables)]
-  pub fn into_view_cont(self,cont:impl Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone) -> impl IntoView {
+  pub fn into_view_cont(self,cont:impl Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
       crate::dom::hydrate_children((**self.inner).clone(), &cont);
       let v = self.top_view();
-      self.do_effect();
+      self.do_effect(on_load);
       v
     }
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { view! { <div/> }.into_any() }
   }
 
-  pub fn into_view(self) -> impl IntoView {
+  pub fn into_view(self, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
       let v = self.top_view();
-      self.do_effect();
+      self.do_effect(on_load);
       v
     }
     #[cfg(not(any(feature="csr",feature="hydrate")))]
@@ -133,23 +135,23 @@ impl OriginalNode {
   }
 
   #[allow(unused_variables)]
-  pub fn children_into_view_cont(self,cont:impl Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone) -> impl IntoView {
+  pub fn children_into_view_cont(self,cont:impl Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
       crate::dom::hydrate_children((**self.inner).clone(), &cont);
       let v = self.top_view();
-      self.do_children_effect();
+      self.do_children_effect(on_load);
       v
     }
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { view! { <div/> }.into_any() }
   }
 
-  pub fn children_into_view(self) -> impl IntoView {
+  pub fn children_into_view(self, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
       let v = self.top_view();
-      self.do_children_effect();
+      self.do_children_effect(on_load);
       v
     }
     #[cfg(not(any(feature="csr",feature="hydrate")))]
