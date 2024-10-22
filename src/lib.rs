@@ -127,17 +127,17 @@ pub fn DomCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(#[allow(unu
 
 /// A component that renders a string of valid HTML, and then calls `f` on all the DOM nodes resulting from that to potentially "hydrate" them further.
 #[component]
-pub fn DomStringCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:String,cont:F) -> impl IntoView {
+pub fn DomStringCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:String,cont:F,#[prop(optional)] signal:Option<RwSignal<bool>>) -> impl IntoView {
     let rf = NodeRef::<Span>::new();
-    replace_string_effect(rf,|e| (**e).clone(), cont);
+    replace_string_effect(rf,|e| (**e).clone(), cont,signal);
     view!(<span node_ref=rf inner_html=html/>)
 }
 
 /// Like [`DomStringCont`], but using `<mrow>` instead of `<span>`.
 #[component]
-pub fn DomStringContMath<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:String,cont:F) -> impl IntoView {
+pub fn DomStringContMath<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:String,cont:F,#[prop(optional)] signal:Option<RwSignal<bool>>) -> impl IntoView {
     let rf = NodeRef::<Mrow>::new();
-    replace_string_effect(rf,|e| e, cont);
+    replace_string_effect(rf,|e| e, cont,signal);
     view!(<mrow node_ref=rf inner_html=html/>)
 }
 
@@ -181,7 +181,7 @@ pub(crate) fn on_mount(mut node:Element,mut then:impl FnMut(&mut Element) + 'sta
 }
 
 #[allow(unused_variables)]
-fn replace_string_effect<E,F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(rf:NodeRef<E>,conv:impl Fn(E::Output) -> Element + 'static,cont:F)
+fn replace_string_effect<E,F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(rf:NodeRef<E>,conv:impl Fn(E::Output) -> Element + 'static,cont:F,signal:Option<RwSignal<bool>>)
 where
     E: ElementType + 'static,
     E::Output:leptos::wasm_bindgen::JsCast + Clone + 'static {
@@ -190,13 +190,14 @@ where
     {
       let node = conv(node);
       dom::hydrate_children((*node).clone(), &cont);
-      on_mount(node,|node| {
+      on_mount(node,move |node| {
         while let Some(mut c) = node.child_nodes().item(0) {
           if !node.insert_before_this(&mut c) {
             panic!("ERROR: Failed to insert child node!!");
           }
         }
         node.unmount();
+        if let Some(signal) = signal {signal.set(true); }
       });
       
       /*let parent = node.parent_node().unwrap_or_else(|| {
