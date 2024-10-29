@@ -1,10 +1,7 @@
 use leptos::prelude::*;
+use leptos::tachys::view::any_view::AnyView;
 use leptos::web_sys::Element;
-use tachys::view::any_view::AnyView;
 use wasm_bindgen::prelude::*;
-
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 use leptos_dyn_dom::*;
 
@@ -20,7 +17,7 @@ fn MainBody(orig: OriginalNode) -> impl IntoView {
     leptos::logging::log!("Here (body)");
     view! {
         <ConfigProvider>
-            {orig.children_into_view_cont(replace)}
+            {orig.children_into_view_cont(replace,None)}
             //<DomChildrenCont orig cont=replace />
         </ConfigProvider>
     }
@@ -42,11 +39,11 @@ fn MyReplacementComponent(children: Children) -> impl IntoView {
     }
 }
 
-fn replace(e: &Element) -> Option<AnyView<Dom>> {
+fn replace(e: &Element) -> Option<AnyView> {
     e.get_attribute("data-replace-with-leptos").map(|_| {
         let orig: OriginalNode = e.clone().into();
         view!(<MyReplacementComponent>
-            {orig.children_into_view_cont(replace)}
+            {orig.children_into_view_cont(replace,None)}
             </MyReplacementComponent>)
         .into_any()
     })

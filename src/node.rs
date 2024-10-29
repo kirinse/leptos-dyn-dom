@@ -1,7 +1,7 @@
-use leptos::{prelude::*, web_sys::Element};
+use leptos::{prelude::*, web_sys::{Element,Node}};
 
 #[cfg(any(feature="csr",feature="hydrate"))]
-use leptos::{web_sys::Node,html::Div,math::Mspace};
+use leptos::{html::Div,math::Mspace};
 
 #[cfg(any(feature="csr",feature="hydrate"))]
 #[derive(Copy,Clone)]
@@ -65,7 +65,7 @@ impl OriginalNode {
   }
 
   #[cfg(any(feature="csr",feature="hydrate"))]
-  fn top_view(&self) -> AnyView<Dom> {
+  fn top_view(&self) -> AnyView {
     match self.signal {
       OriginalNodeRef::Html(n) => view! { <div node_ref=n/> }.into_any(),
       OriginalNodeRef::MathML(n) => view! { <mspace node_ref=n/> }.into_any(),
@@ -111,7 +111,7 @@ impl OriginalNode {
   }
 
   #[allow(unused_variables)]
-  pub fn into_view_cont(self,cont:impl Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
+  pub fn into_view_cont(self,cont:impl Fn(&Element) -> Option<AnyView>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
       crate::dom::hydrate_children((**self.inner).clone(), &cont);
@@ -123,6 +123,7 @@ impl OriginalNode {
     { view! { <div/> }.into_any() }
   }
 
+  #[allow(unused_variables)]
   pub fn into_view(self, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
@@ -135,7 +136,7 @@ impl OriginalNode {
   }
 
   #[allow(unused_variables)]
-  pub fn children_into_view_cont(self,cont:impl Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
+  pub fn children_into_view_cont(self,cont:impl Fn(&Element) -> Option<AnyView>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
       crate::dom::hydrate_children((**self.inner).clone(), &cont);
@@ -147,6 +148,7 @@ impl OriginalNode {
     { view! { <div/> }.into_any() }
   }
 
+  #[allow(unused_variables)]
   pub fn children_into_view(self, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
@@ -159,7 +161,7 @@ impl OriginalNode {
   }
 }
 
-impl Render<Dom> for OriginalNode {
+impl Render for OriginalNode {
   type State = Element;
   fn build(self) -> Self::State { 
     #[cfg(any(feature="csr",feature="hydrate"))]
@@ -170,23 +172,23 @@ impl Render<Dom> for OriginalNode {
   fn rebuild(self,_state:&mut Self::State) { }
 }
 
-impl Mountable<Dom> for OriginalNode {
+impl Mountable for OriginalNode {
   fn unmount(&mut self) {
       #[cfg(any(feature="csr",feature="hydrate"))]
       self.inner.remove();
   }
 
   #[allow(unused_variables)]
-  fn mount(&mut self, parent: &<Dom as Renderer>::Element, marker: Option<&<Dom as Renderer>::Node>) {
+  fn mount(&mut self, parent: &Element, marker: Option<&Node>) {
     #[cfg(any(feature="csr",feature="hydrate"))]
     Dom::insert_node(parent, &self.inner, marker);
   }
 
   #[allow(unused_variables)]
-  fn insert_before_this(&self, child: &mut dyn Mountable<Dom>) -> bool {
+  fn insert_before_this(&self, child: &mut dyn Mountable) -> bool {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
-      use tachys::renderer::CastFrom;
+      use leptos::tachys::renderer::CastFrom;
       let parent = Dom::get_parent(&self.inner).and_then(Element::cast_from);
       if let Some(parent) = parent {
           child.mount(&parent, Some(&self.inner));
@@ -238,7 +240,7 @@ use leptos::{attr::Attribute,prelude::{RenderHtml,AddAnyAttr,Dom, Render}};
 
 */
 use leptos::html::ElementType;
-use tachys::view::any_view::AnyView;
+use leptos::tachys::view::any_view::AnyView;
 
 
 macro_rules! elems {

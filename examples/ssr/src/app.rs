@@ -94,7 +94,7 @@ fn SomeComplicatedComponent() -> impl IntoView {
     }
 }
 
-use tachys::view::any_view::AnyView;
+use leptos::tachys::view::any_view::AnyView;
 
 #[component]
 fn MyReplacementComponent(orig: OriginalNode) -> impl IntoView {
@@ -111,7 +111,7 @@ fn MyReplacementComponent(orig: OriginalNode) -> impl IntoView {
     }
 }
 
-fn replace(e: &leptos::web_sys::Element) -> Option<AnyView<Dom>> {
+fn replace(e: &leptos::web_sys::Element) -> Option<AnyView> {
     e.get_attribute("data-replace-with-leptos").map(|_| {
         let orig = e.clone().into();
         view!(<MyReplacementComponent orig/>).into_any()

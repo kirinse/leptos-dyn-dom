@@ -102,7 +102,7 @@ pub use node::OriginalNode;
 pub use dom::hydrate_node;
 
 use leptos::{web_sys::Element, html::{ElementType, Span}, math::Mrow, prelude::*};
-use tachys::view::any_view::AnyView;
+use leptos::tachys::view::any_view::AnyView;
 
 /// A component that inserts the  children of some [`OriginalNode`] 
 /// and renders them into the DOM.
@@ -113,7 +113,7 @@ pub fn DomChildren(orig:OriginalNode,#[prop(optional)] on_load:Option<RwSignal<b
 
 /// A component that takes the [`OriginalChildren`] of some preexistent DOM node and a continuation function `f`, and renders them into the DOM. Additionally, `f` is called on every child of the replaced element, to potentially "hydrate" them further.
 #[component]
-pub fn DomChildrenCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(orig:OriginalNode,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
+pub fn DomChildrenCont<F:Fn(&Element) -> Option<AnyView>+'static+Clone>(orig:OriginalNode,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
     orig.children_into_view_cont(cont,on_load)
 }
 
@@ -121,13 +121,13 @@ pub fn DomChildrenCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(ori
 /// to potentially "hydrate" them further, and reinserts the original
 /// element into the DOM.
 #[component]
-pub fn DomCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(#[allow(unused_variables)]orig:OriginalNode,#[allow(unused_variables)]cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
+pub fn DomCont<F:Fn(&Element) -> Option<AnyView>+'static+Clone>(#[allow(unused_variables)]orig:OriginalNode,#[allow(unused_variables)]cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
     orig.into_view_cont(cont,on_load)
 }
 
 /// A component that renders a string of valid HTML, and then calls `f` on all the DOM nodes resulting from that to potentially "hydrate" them further.
 #[component]
-pub fn DomStringCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:String,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
+pub fn DomStringCont<F:Fn(&Element) -> Option<AnyView>+'static+Clone>(html:String,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
     let rf = NodeRef::<Span>::new();
     replace_string_effect(rf,|e| (**e).clone(), cont,on_load);
     view!(<span node_ref=rf inner_html=html/>)
@@ -135,7 +135,7 @@ pub fn DomStringCont<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:
 
 /// Like [`DomStringCont`], but using `<mrow>` instead of `<span>`.
 #[component]
-pub fn DomStringContMath<F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(html:String,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
+pub fn DomStringContMath<F:Fn(&Element) -> Option<AnyView>+'static+Clone>(html:String,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
     let rf = NodeRef::<Mrow>::new();
     replace_string_effect(rf,|e| e, cont,on_load);
     view!(<mrow node_ref=rf inner_html=html/>)
@@ -181,7 +181,7 @@ pub(crate) fn on_mount(mut node:Element,mut then:impl FnMut(&mut Element) + 'sta
 }
 
 #[allow(unused_variables)]
-fn replace_string_effect<E,F:Fn(&Element) -> Option<AnyView<Dom>>+'static+Clone>(rf:NodeRef<E>,conv:impl Fn(E::Output) -> Element + 'static,cont:F,signal:Option<RwSignal<bool>>)
+fn replace_string_effect<E,F:Fn(&Element) -> Option<AnyView>+'static+Clone>(rf:NodeRef<E>,conv:impl Fn(E::Output) -> Element + 'static,cont:F,signal:Option<RwSignal<bool>>)
 where
     E: ElementType + 'static,
     E::Output:leptos::wasm_bindgen::JsCast + Clone + 'static {
