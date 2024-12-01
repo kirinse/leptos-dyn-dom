@@ -12,6 +12,7 @@ pub enum OriginalNodeRef {
 
 /// Represents the original children some node in the DOM had, to be used in the [`DomChildren`](super::DomChildren), [`DomChildrenCont`](super::DomChildrenCont) and [`DomStringCont`](super::DomStringCont) components.
 #[cfg(any(feature="csr",feature="hydrate"))]
+#[derive(Clone)]
 pub struct OriginalNode{
   pub(crate) inner: send_wrapper::SendWrapper<Element>,
   tag:String,
@@ -20,6 +21,7 @@ pub struct OriginalNode{
 
   // Server side, this is just an empty struct, since there's no DOM anyway.
 #[cfg(not(any(feature="csr",feature="hydrate")))]
+#[derive(Clone)]
 pub struct OriginalNode {}
 
 impl<E:Into<Element>> From<E> for OriginalNode {
@@ -28,6 +30,19 @@ impl<E:Into<Element>> From<E> for OriginalNode {
 }
 
 impl OriginalNode {
+
+  pub fn deep_clone(&self) -> Self {
+    #[cfg(not(any(feature="csr",feature="hydrate")))]
+    { Self{} }
+    #[cfg(any(feature="csr",feature="hydrate"))]
+    {
+      use wasm_bindgen::JsCast;
+      Self::new(self.inner.clone_node_with_deep(true)
+        .expect("Failed to clone node").dyn_into()
+        .unwrap_or_else(|_| unreachable!()))
+    }
+  }
+
   #[inline]
   pub fn inner_html(&self) -> String {
     #[cfg(any(feature="csr",feature="hydrate"))]
@@ -80,10 +95,12 @@ impl OriginalNode {
   }
 
   #[cfg(any(feature="csr",feature="hydrate"))]
-  fn top_view(&self) -> AnyView {
+  fn top_view(&self) -> impl IntoView {
+    use leptos::either::Either;
+
     match self.signal {
-      OriginalNodeRef::Html(n) => view! { <div node_ref=n/> }.into_any(),
-      OriginalNodeRef::MathML(n) => view! { <mspace node_ref=n/> }.into_any(),
+      OriginalNodeRef::Html(n) => Either::Left(view! { <div node_ref=n/> }),
+      OriginalNodeRef::MathML(n) => Either::Right(view! { <mspace node_ref=n/> }),
     }
   }
 
@@ -126,7 +143,7 @@ impl OriginalNode {
   }
 
   #[allow(unused_variables)]
-  pub fn into_view_cont(self,cont:impl Fn(&Element) -> Option<AnyView>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
+  pub fn into_view_cont<V:IntoView+'static>(self,cont:impl Fn(&Element) -> Option<V>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
       crate::dom::hydrate_children((**self.inner).clone(), &cont);
@@ -135,7 +152,7 @@ impl OriginalNode {
       v
     }
     #[cfg(not(any(feature="csr",feature="hydrate")))]
-    { view! { <div/> }.into_any() }
+    { view! { <div/> } }
   }
 
   #[allow(unused_variables)]
@@ -151,7 +168,7 @@ impl OriginalNode {
   }
 
   #[allow(unused_variables)]
-  pub fn children_into_view_cont(self,cont:impl Fn(&Element) -> Option<AnyView>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
+  pub fn children_into_view_cont<V:IntoView+'static>(self,cont:impl Fn(&Element) -> Option<V>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
       crate::dom::hydrate_children((**self.inner).clone(), &cont);
@@ -160,7 +177,7 @@ impl OriginalNode {
       v
     }
     #[cfg(not(any(feature="csr",feature="hydrate")))]
-    { view! { <div/> }.into_any() }
+    { view! { <div/> } }
   }
 
   #[allow(unused_variables)]
@@ -255,8 +272,6 @@ use leptos::{attr::Attribute,prelude::{RenderHtml,AddAnyAttr,Dom, Render}};
 
 */
 use leptos::html::ElementType;
-use leptos::tachys::view::any_view::AnyView;
-
 
 macro_rules! elems {
   ( $( #[$meta:meta] $htag:ident ),* ==M== $($mtag:ident),* ==S== $($stag:ident),* ) => {

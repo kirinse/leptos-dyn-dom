@@ -1,5 +1,4 @@
 use leptos::prelude::*;
-use leptos::tachys::view::any_view::AnyView;
 use leptos::web_sys::Element;
 use wasm_bindgen::prelude::*;
 
@@ -39,12 +38,11 @@ fn MyReplacementComponent(children: Children) -> impl IntoView {
     }
 }
 
-fn replace(e: &Element) -> Option<AnyView> {
+fn replace(e: &Element) -> Option<impl IntoView> {
     e.get_attribute("data-replace-with-leptos").map(|_| {
         let orig: OriginalNode = e.clone().into();
         view!(<MyReplacementComponent>
             {orig.children_into_view_cont(replace,None)}
             </MyReplacementComponent>)
-        .into_any()
     })
 }

@@ -1,11 +1,11 @@
 #[cfg(any(feature="csr",feature="hydrate"))]
-use leptos::{web_sys::{Node,Element},prelude::{Mountable, Owner, Render}, tachys::view::any_view::AnyView, IntoView};
+use leptos::{web_sys::{Node,Element},prelude::{Mountable, Owner, Render}, IntoView};
 #[cfg(any(feature="csr",feature="hydrate"))]
 use wasm_bindgen::JsCast;
 
 /// Iterates over the node and its children (DFS) and replaces elements via the given function.
 #[cfg(any(feature="csr",feature="hydrate"))]
-pub fn hydrate_node(node:Node,replace:&impl Fn(&Element) -> Option<AnyView>) {
+pub fn hydrate_node<V:IntoView+'static>(node:Node,replace:&impl Fn(&Element) -> Option<V>) {
   // Check node returns a new index if it replaced the node, otherwise None.
   if check_node(&node,0,replace).is_some() {return}
   hydrate_children(node, replace);
@@ -14,7 +14,7 @@ pub fn hydrate_node(node:Node,replace:&impl Fn(&Element) -> Option<AnyView>) {
 
 /// Iterates over the children of a node and replaces elements via the given function.
 #[cfg(any(feature="csr",feature="hydrate"))]
-pub fn hydrate_children(node:Node,replace:&impl Fn(&Element) -> Option<AnyView>) {
+pub fn hydrate_children<V:IntoView+'static>(node:Node,replace:&impl Fn(&Element) -> Option<V>) {
   // Non-recursive DOM iteration
   let mut current = node;
   let mut index = 0u32;
@@ -40,7 +40,7 @@ pub fn hydrate_children(node:Node,replace:&impl Fn(&Element) -> Option<AnyView>)
 
 // Actually replaces nodes:
 #[cfg(any(feature="csr",feature="hydrate"))]
-fn check_node(node:&Node,mut start:u32,replace:&impl Fn(&Element) -> Option<AnyView>) -> Option<u32> {
+fn check_node<V:IntoView+'static>(node:&Node,mut start:u32,replace:&impl Fn(&Element) -> Option<V>) -> Option<u32> {
   if let Some(e) = node.dyn_ref::<Element>() {
     if let Some(v) = replace(e) {
       // This is mostly copied from leptos::mount_to_body and related methods
