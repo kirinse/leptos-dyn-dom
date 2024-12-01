@@ -28,6 +28,21 @@ impl<E:Into<Element>> From<E> for OriginalNode {
 }
 
 impl OriginalNode {
+  #[inline]
+  pub fn inner_html(&self) -> String {
+    #[cfg(any(feature="csr",feature="hydrate"))]
+    {self.inner.inner_html() }
+    #[cfg(not(any(feature="csr",feature="hydrate")))]
+    { String::new() }
+  }
+  #[inline]
+  pub fn html_string(&self) -> String { 
+    #[cfg(any(feature="csr",feature="hydrate"))]
+    {self.inner.outer_html() }
+    #[cfg(not(any(feature="csr",feature="hydrate")))]
+    { String::new() }
+  }
+
   fn new(_e:Element) -> Self {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
