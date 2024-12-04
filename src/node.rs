@@ -71,7 +71,7 @@ impl OriginalNode {
     let _ = p.remove_child(rf);
   }
 
-  pub(crate) fn as_view(&self,mut cont:impl FnMut(&mut Element) + 'static) -> impl IntoView {
+  pub(crate) fn as_view(&self,mut cont:impl FnMut(&mut Element) + 'static + Send) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
       let mut cont = Some(move |e| on_mount(e,move |e| {
@@ -80,38 +80,31 @@ impl OriginalNode {
       let tag = self.inner.tag_name();
       if AnyTag::from(&tag).map(AnyTag::is_mathml).unwrap_or_default() {
         let rf = NodeRef::new();
-        let _ = Effect::new(move |_| {
-          let Some(e):Option<Element> = rf.get() else { return };
-          if let Some(cont) = std::mem::take(&mut cont) { cont(e) }
-        });
-        leptos::either::Either::Left(view! { <mspace node_ref=rf/> })
+        leptos::either::Either::Left(view! { 
+          {move || {
+            let Some(e):Option<Element> = rf.get() else { return "" };
+            if let Some(cont) = std::mem::take(&mut cont) { cont(e) }
+            ""
+          }}
+          <mspace node_ref=rf/> 
+        })
       } else {
         let rf = NodeRef::<Div>::new();
-        let _ = Effect::new(move |_| {
-          if let Some(e) = rf.get() {
-            if let Some(cont) = std::mem::take(&mut cont) { cont(e.into()) }
-          }
-        });
-        leptos::either::Either::Right(view! { <div node_ref=rf/> })
+        //let _ = Effect::new();
+        leptos::either::Either::Right(view! { 
+          {move || {
+            if let Some(e) = rf.get() {
+              if let Some(cont) = std::mem::take(&mut cont) { cont(e.into()) }
+            }
+            ""
+          }}
+          <div node_ref=rf/> 
+        })
       }
     }
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { view! { <div/> } }
   }
-/*
-  #[cfg(any(feature="csr",feature="hydrate"))]
-  #[inline]
-  fn signal(&self) -> OriginalNodeRef {
-    self.signal.get_or_init(|| {
-      let tag = self.inner.tag_name();
-      if AnyTag::from(&tag).map(AnyTag::is_mathml).unwrap_or_default() {
-        OriginalNodeRef::MathML(NodeRef::new())
-      } else {
-        OriginalNodeRef::Html(NodeRef::new())
-      }
-    }).clone()
-  }
-   */
 
   pub fn deep_clone(&self) -> Self {
     #[cfg(not(any(feature="csr",feature="hydrate")))]
@@ -139,133 +132,6 @@ impl OriginalNode {
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { String::new() }
   }
-
-  /*
-  #[cfg(any(feature="csr",feature="hydrate"))]
-  pub(crate) fn clone_children(&self) -> Vec<Node> {
-    assert!(self.inner.valid());
-    let mut vec = Vec::new();
-    let mut i = 0;
-    while let Some(c) = self.inner.child_nodes().item(i) {
-      vec.push(c);i+=1;
-    }
-    vec
-  }
-   */
-/*
-  #[inline]
-  pub fn tag(&self) -> Option<AnyTag> {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    { AnyTag::from(&self.tag) }
-    #[cfg(not(any(feature="csr",feature="hydrate")))]
-    { None }
-  }
-  */
-/*
-  #[cfg(any(feature="csr",feature="hydrate"))]
-  fn top_view(&self) -> impl IntoView {
-    use leptos::either::Either;
-
-    match self.signal {
-      OriginalNodeRef::Html(n) => Either::Left(view! { <div node_ref=n style="display:none;"/> }),
-      OriginalNodeRef::MathML(n) => Either::Right(view! { <mspace node_ref=n style="display:none;"/> }),
-    }
-  }
-   */
-/*
-  #[cfg(any(feature="csr",feature="hydrate"))]
-  fn do_effect(self, on_load:Option<RwSignal<bool>>) {
-    Effect::new(move |_| {
-      let Some(n) = (match self.signal {
-        OriginalNodeRef::Html(n) => n.get().map(|n| (**n).clone()),
-        OriginalNodeRef::MathML(n) => n.get()
-      }) else {return};
-      let mut inner = (*self.inner).clone();
-      crate::on_mount(n,move |n| {
-        if !n.insert_before_this(&mut inner) {
-          panic!("ERROR: Failed to insert child node!!");
-        }
-        n.unmount();
-        if let Some(on_load) = on_load {on_load.set(true)}
-      });
-    });
-  }
-   */
-/*
-  #[cfg(any(feature="csr",feature="hydrate"))]
-  fn do_children_effect(self, on_load:Option<RwSignal<bool>>) {
-    Effect::new(move |_| {
-      let Some(n) = (match self.signal {
-        OriginalNodeRef::Html(n) => n.get().map(|n| (**n).clone()),
-        OriginalNodeRef::MathML(n) => n.get()
-      }) else {return};
-      let mut children = self.clone_children();
-      crate::on_mount(n,move |n| {
-        for mut c in std::mem::take(&mut children) {
-          if !n.insert_before_this(&mut c) {
-            panic!("ERROR: Failed to insert child node!!");
-          }
-        }
-        n.unmount();
-        if let Some(on_load) = on_load {on_load.set(true)}
-      });
-    });
-  }
-   */
-/*
-  #[allow(unused_variables)]
-  pub fn into_view_cont<V:IntoView+'static>(self,cont:impl Fn(&Element) -> Option<V>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    {
-      crate::dom::hydrate_children((**self.inner).clone(), &cont);
-      let v = self.top_view();
-      self.do_effect(on_load);
-      v
-    }
-    #[cfg(not(any(feature="csr",feature="hydrate")))]
-    { view! { <div/> } }
-  }
-   */
-/*
-  #[allow(unused_variables)]
-  pub fn into_view(self, on_load:Option<RwSignal<bool>>) -> impl IntoView {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    {
-      let v = self.top_view();
-      self.do_effect(on_load);
-      v
-    }
-    #[cfg(not(any(feature="csr",feature="hydrate")))]
-    { view! { <div/> }.into_any() }
-  }
- */
-/*
-  #[allow(unused_variables)]
-  pub fn children_into_view_cont<V:IntoView+'static>(self,cont:impl Fn(&Element) -> Option<V>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    {
-      crate::dom::hydrate_children((**self.inner).clone(), &cont);
-      let v = self.top_view();
-      self.do_children_effect(on_load);
-      v
-    }
-    #[cfg(not(any(feature="csr",feature="hydrate")))]
-    { view! { <div/> } }
-  }
- */
-/*
-  #[allow(unused_variables)]
-  pub fn children_into_view(self, on_load:Option<RwSignal<bool>>) -> impl IntoView {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    {
-      let v = self.top_view();
-      self.do_children_effect(on_load);
-      v
-    }
-    #[cfg(not(any(feature="csr",feature="hydrate")))]
-    { view! { <div/> }.into_any() }
-  }
-   */
 }
 
 
@@ -302,83 +168,59 @@ pub(crate) fn on_mount(mut node:Element,mut then:impl FnMut(&mut Element) + 'sta
     callback.forget();
   }
 }
-
 /*
-impl Render for OriginalNode {
-  type State = Element;
-  fn build(self) -> Self::State { 
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    { self.inner.take() }
-    #[cfg(not(any(feature="csr",feature="hydrate")))]
-    { unreachable!() }
-  }
-  fn rebuild(self,_state:&mut Self::State) { }
-}
+mod test {
+  use leptos::prelude::*;
+  use web_sys::Element;
+  use super::OriginalNode;
 
-impl Mountable for OriginalNode {
-  fn unmount(&mut self) {
+  impl Render for OriginalNode {
+    type State = Element;
+    #[inline]
+    fn build(self) -> Self::State {
       #[cfg(any(feature="csr",feature="hydrate"))]
-      self.inner.remove();
-  }
-
-  #[allow(unused_variables)]
-  fn mount(&mut self, parent: &Element, marker: Option<&Node>) {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    Dom::insert_node(parent, &self.inner, marker);
-  }
-
-  #[allow(unused_variables)]
-  fn insert_before_this(&self, child: &mut dyn Mountable) -> bool {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    {
-      use leptos::tachys::renderer::CastFrom;
-      let parent = Dom::get_parent(&self.inner).and_then(Element::cast_from);
-      if let Some(parent) = parent {
-          child.mount(&parent, Some(&self.inner));
-          return true;
-      }
+      { self.inner.take() }
+      #[cfg(not(any(feature="csr",feature="hydrate")))]
+      { unreachable!() }
     }
-    false
+    #[inline]
+    fn rebuild(self, state: &mut Self::State) {}
+  }
+  impl RenderHtml for OriginalNode {
+    type AsyncOutput = Self;
+    const MIN_LENGTH: usize = 0;
+    fn dry_resolve(&mut self) { todo!() }
+    fn resolve(self) -> impl std::future::Future<Output = Self::AsyncOutput> + Send {
+      std::future::ready(todo!())
+    }
+    fn to_html_with_buf(
+            self,
+            buf: &mut String,
+            position: &mut leptos::tachys::view::Position,
+            escape: bool,
+            mark_branches: bool,
+        ) {
+      todo!()
+    }
+    fn hydrate<const FROM_SERVER: bool>(
+            self,
+            cursor: &leptos::tachys::hydration::Cursor,
+            position: &leptos::tachys::view::PositionState,
+        ) -> Self::State {
+        todo!()
+    }
+  }
+  impl AddAnyAttr for OriginalNode {
+    type Output<SomeNewAttr: leptos::attr::Attribute> = Self;
+    fn add_any_attr<NewAttr: leptos::attr::Attribute>(
+            self,
+            _attr: NewAttr,
+        ) -> Self::Output<NewAttr> {
+      todo!()
+    }
   }
 }
    */
-
-/*
-impl RenderHtml<Dom> for OriginalNode {
-  type AsyncOutput = Self;
-  const EXISTS = true;
-  const MIN_LENGTH:usize = 0;
-  fn dry_resolve(&mut self) { }
-  fn resolve(self) -> impl std::future::Future<Output = Self::AsyncOutput> + Send { async move {self} }
-
-}
-
-impl AddAnyAttr<Dom> for OriginalNode {
-  type Output<SomeNewAttr: Attribute<Dom>> = Self;
-  fn add_any_attr<NewAttr: leptos::attr::Attribute<Dom>>(
-          self,
-          _attr: NewAttr,
-      ) -> Self::Output<NewAttr>
-      where
-          Self::Output<NewAttr>: leptos::prelude::RenderHtml<Dom> {
-            /* 
-      let e = &(*self.inner);
-
-      let mut buf = String::new();
-      let mut class = String::new();
-      let mut style = String::new();
-      let mut inner_html = String::new();
-      attr.to_html(&mut buf, &mut class, &mut style, &mut inner_html);
-      e.set_attribute(attr.name(), attr.value()).unwrap();
-            */
-      todo!()
-  }
-}
-  */
-
-/*
-use leptos::{attr::Attribute,prelude::{RenderHtml,AddAnyAttr,Dom, Render}};
-*/
 
 macro_rules! elems {
   ( $( #[$meta:meta] $htag:ident ),* ==M== $($mtag:ident),* ==S== $($stag:ident),* ) => {

@@ -115,7 +115,7 @@ use send_wrapper::SendWrapper;
 pub fn DomCont<
     V:IntoView+'static,
     R:FnOnce() -> V,
-    F:Fn(&Element) -> Option<R>+'static
+    F:Fn(&Element) -> Option<R>+'static+Send
 >(orig:OriginalNode,#[prop(optional)] skip_head:bool,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     let mut inner = orig.inner.clone();
@@ -156,7 +156,7 @@ pub fn DomChildren(orig:OriginalNode,#[prop(optional)] on_load:Option<RwSignal<b
 pub fn DomChildrenCont<
     V:IntoView+'static,
     R:FnOnce() -> V,
-    F:Fn(&Element) -> Option<R>+'static
+    F:Fn(&Element) -> Option<R>+'static+Send
 >(orig:OriginalNode,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     let inner = orig.inner.clone();
@@ -180,21 +180,17 @@ pub fn DomStringCont<
 >(html:String,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
     let rf = NodeRef::<Span>::new();
     #[cfg(any(feature="csr",feature="hydrate"))]
-    {
-        let mut cont = Some(move |e| node::on_mount(e,move |e| {
-            OriginalNode::do_children(e, e, 
-                |e| dom::hydrate_node(e, &cont)
-            );
-            if let Some(on_load) = on_load { on_load.set(true); }
-        }));
-        let _ = Effect::new(move |_| {
-            if let Some(e) = rf.get() {
-                if let Some(cont) = std::mem::take(&mut cont) {
-                    cont(e.into())
-                }
-            }
-        });
-    }
+    let mut cont = move |e| node::on_mount(e,move |e| {
+        //leptos::logging::log!("Mounting {}",e.outer_html());
+        OriginalNode::do_children(e, e, 
+            |e| dom::hydrate_node(e, &cont)
+        );
+        if let Some(on_load) = on_load { on_load.set(true); }
+    });
+    rf.on_load(|e| {
+        #[cfg(any(feature="csr",feature="hydrate"))]
+        cont(e.into());
+    });
     view!(<span node_ref=rf inner_html=html/>)
 }
 
@@ -203,27 +199,21 @@ pub fn DomStringCont<
 pub fn DomStringContMath<
     V:IntoView+'static,
     R:FnOnce() -> V,
-    F:Fn(&Element) -> Option<R>+'static
+    F:Fn(&Element) -> Option<R>+'static+Send
 >(html:String,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
     let rf = NodeRef::<Mrow>::new();
     #[cfg(any(feature="csr",feature="hydrate"))]
-    {
-        let mut cont = Some(move |e| node::on_mount(e,move |e| {
-            //leptos::logging::log!("Mounting {}",e.outer_html);
-            OriginalNode::do_children(e, e, 
-                |e| dom::hydrate_node(e, &cont)
-            );
-            if let Some(on_load) = on_load { on_load.set(true); }
-        }));
-        let _ = Effect::new(move |_| {
-            if let Some(e) = rf.get() {
-                //leptos::logging::log!("premounted: {}",e.outer_html());
-                if let Some(cont) = std::mem::take(&mut cont) {
-                    cont(e)
-                }
-            }
-        });
-    }
+    let mut cont = move |e| node::on_mount(e,move |e| {
+        //leptos::logging::log!("Mounting {}",e.outer_html());
+        OriginalNode::do_children(e, e, 
+            |e| dom::hydrate_node(e, &cont)
+        );
+        if let Some(on_load) = on_load { on_load.set(true); }
+    });
+    rf.on_load(|e| {
+        #[cfg(any(feature="csr",feature="hydrate"))]
+        cont(e);
+    });
     view!(<mrow node_ref=rf inner_html=html/>)
 }
 
