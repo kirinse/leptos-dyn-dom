@@ -16,15 +16,15 @@ fn MainBody(orig: OriginalNode) -> impl IntoView {
     leptos::logging::log!("Here (body)");
     view! {
         <ConfigProvider>
-            {orig.children_into_view_cont(replace,None)}
-            //<DomChildrenCont orig cont=replace />
+            <DomChildrenCont orig cont=replace/>
         </ConfigProvider>
     }
 }
 
 #[component]
-fn MyReplacementComponent(children: Children) -> impl IntoView {
+fn MyReplacementComponent<Ch: IntoView + 'static>(children: TypedChildren<Ch>) -> impl IntoView {
     use thaw::*;
+    let children = children.into_inner();
     view! {
         <div><div style="border: 1px solid red;width:fit-content;margin:auto">
           <Popover>
@@ -38,11 +38,14 @@ fn MyReplacementComponent(children: Children) -> impl IntoView {
     }
 }
 
-fn replace(e: &Element) -> Option<impl IntoView> {
+fn replace(e: &Element) -> Option<impl FnOnce() -> AnyView> {
     e.get_attribute("data-replace-with-leptos").map(|_| {
         let orig: OriginalNode = e.clone().into();
-        view!(<MyReplacementComponent>
-            {orig.children_into_view_cont(replace,None)}
-            </MyReplacementComponent>)
+        || {
+            view!(<MyReplacementComponent>
+            <DomChildrenCont orig cont=replace/>
+        </MyReplacementComponent>)
+            .into_any()
+        }
     })
 }
