@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-csr = ["leptos/csr","dep:wasm-bindgen"]
-hydrate = ["leptos/hydrate","dep:wasm-bindgen"]
+csr = ["leptos/csr"]
+hydrate = ["leptos/hydrate"]
+ssr = []
 
 [dependencies]
-wasm-bindgen = {version="0.2",optional=true}
-web-sys = { version = "0.3", features = ["Document", "Element","NodeList","MutationObserver","MutationObserverInit","MutationRecord"] }
+web-sys = { version="0", features = ["Document", "Element","NodeList","MutationObserver","MutationObserverInit","MutationRecord"] }
 leptos = { version = "0.7" }
 send_wrapper = "0.6.0"

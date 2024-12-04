@@ -1,65 +1,99 @@
 #[cfg(any(feature="csr",feature="hydrate"))]
 use leptos::{web_sys::{Node,Element},prelude::{Mountable, Owner, Render}, IntoView};
 #[cfg(any(feature="csr",feature="hydrate"))]
-use wasm_bindgen::JsCast;
+use leptos::wasm_bindgen::JsCast;
 
 /// Iterates over the node and its children (DFS) and replaces elements via the given function.
 #[cfg(any(feature="csr",feature="hydrate"))]
-pub fn hydrate_node<V:IntoView+'static>(node:Node,replace:&impl Fn(&Element) -> Option<V>) {
+pub fn hydrate_node<
+  V:IntoView+'static,
+  R:FnOnce() -> V,
+  F:Fn(&Element) -> Option<R>+'static
+>(node:Node,replace:&F) {
   // Check node returns a new index if it replaced the node, otherwise None.
-  if check_node(&node,0,replace).is_some() {return}
+  if check_node(&node,&node,replace).0 {return}
+  crate::cleanup(node.clone());
   hydrate_children(node, replace);
 }
+
+/*
+/// Iterates over the children of a node and replaces elements via the given function.
+#[cfg(any(feature="csr",feature="hydrate"))]
+#[inline]
+pub fn hydrate_children<V:IntoView+'static>(node:Node,replace:&impl Fn(&Element) -> Option<V>) {
+  hydrate_children_i(node,replace);
+}
+   */
 
 
 /// Iterates over the children of a node and replaces elements via the given function.
 #[cfg(any(feature="csr",feature="hydrate"))]
-pub fn hydrate_children<V:IntoView+'static>(node:Node,replace:&impl Fn(&Element) -> Option<V>) {
-  // Non-recursive DOM iteration
-  let mut current = node;
-  let mut index = 0u32;
-  let mut stack : Vec<(Node,u32)> = Vec::new();
+pub(crate) fn hydrate_children<
+  V:IntoView+'static,
+  R:FnOnce() -> V,
+  F:Fn(&Element) -> Option<R>+'static
+>(node:Node,replace:&F) {
+  let Some(mut current) = node.first_child() else { return };
+  while let (_,Some(next)) = check_node(&current, &node, replace) {
+    current = next;
+  }
+}
+#[cfg(any(feature="csr",feature="hydrate"))]
+fn next(top:&Node,current: &Node) -> Option<Node> {
+  if let Some(c) = current.first_child() {
+    return Some(c)
+  }
+  next_non_child(top,current)
+}
+#[cfg(any(feature="csr",feature="hydrate"))]
+fn next_non_child(top:&Node,current: &Node) -> Option<Node> {
+  if let Some(c) = current.next_sibling() {
+    return Some(c)
+  }
+  let mut current = current.clone();
   loop {
-    if let Some(c) = current.child_nodes().item(index) {
-      // Check node returns a new index if it replaced the node, otherwise None.
-      if let Some(skip) = check_node(&c,index,replace) {
-        index = skip;
-        continue;
+    if let Some(p) = current.parent_node() {
+      if p == *top {return None }
+      if let Some(c) = p.next_sibling() {
+        return Some(c)
       }
-      if c.has_child_nodes() {
-        let old = std::mem::replace(&mut current,c);
-        stack.push((old,index + 1));
-        index = 0;
-      } else { index += 1;}
-    } else if let Some((old,idx)) = stack.pop() {
-        current = old;
-        index = idx;
-    } else { break; }
+      current = p;
+      continue
+    }
+    return None
   }
 }
 
 // Actually replaces nodes:
 #[cfg(any(feature="csr",feature="hydrate"))]
-fn check_node<V:IntoView+'static>(node:&Node,mut start:u32,replace:&impl Fn(&Element) -> Option<V>) -> Option<u32> {
+fn check_node<
+  V:IntoView+'static,
+  R:FnOnce() -> V,
+  F:Fn(&Element) -> Option<R>+'static
+>(node:&Node,top:&Node,replace:&F) -> (bool,Option<Node>) {
+  //leptos::logging::log!("Checking: {}",crate::prettyprint(node));
   if let Some(e) = node.dyn_ref::<Element>() {
     if let Some(v) = replace(e) {
-      // This is mostly copied from leptos::mount_to_body and related methods
-      let mut r = v.into_view().build();
-      e.insert_before_this(&mut r);
-      // we need to keep the state alive. My buest guess is to hand it over to the owner to clean it up when it deems it necessary.
-      let r = send_wrapper::SendWrapper::new(r);
-      Owner::on_cleanup(move|| {drop(r)});
-      // remove the old element and return the index at which to continue iteration
-      let p = e.parent_node().unwrap();
-      while let Some(c) = p.child_nodes().item(start) {
-        if c == **e {
-          break
-        }
-        start += 1;
-      }
+      let p = e.parent_element().unwrap();
+      let next = e.next_sibling();
+      let ret = next_non_child(top, node);
+      //leptos::logging::log!("Triggered! Parent: {:?}",p.outer_html());
       e.remove();
-      return Some(start);
+      //leptos::logging::log!("Next: {:?}",next.as_ref().map(crate::prettyprint));
+      let owner = Owner::new();
+      owner.with(|| {
+          let mut r = v().into_view().build();
+          if let Some(e) = next.as_ref() {
+            e.insert_before_this(&mut r);
+          } else {
+            r.mount(&p,None);
+          }
+          let mut r = send_wrapper::SendWrapper::new(r);
+          Owner::on_cleanup(|| {r.unmount();drop(r)});
+      });
+      Owner::on_cleanup(move || drop(owner));
+      return (true,ret);
     }
   }
-  None
+  (false,next(top,node))
 }

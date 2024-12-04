@@ -109,9 +109,9 @@ fn MyReplacementComponent(orig: OriginalNode) -> impl IntoView {
     }
 }
 
-fn replace(e: &leptos::web_sys::Element) -> Option<impl IntoView> {
+fn replace(e: &leptos::web_sys::Element) -> Option<impl FnOnce() -> AnyView> {
     e.get_attribute("data-replace-with-leptos").map(|_| {
         let orig = e.clone().into();
-        view!(<MyReplacementComponent orig/>)
+        || view!(<MyReplacementComponent orig/>)
     })
 }

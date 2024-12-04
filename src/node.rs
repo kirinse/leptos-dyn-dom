@@ -1,22 +1,14 @@
-use leptos::{prelude::*, web_sys::{Element,Node}};
+use leptos::{prelude::*, web_sys::Element,html::ElementType};
+use leptos::web_sys::Node;
 
 #[cfg(any(feature="csr",feature="hydrate"))]
-use leptos::{html::Div,math::Mspace};
-
-#[cfg(any(feature="csr",feature="hydrate"))]
-#[derive(Copy,Clone)]
-pub enum OriginalNodeRef {
-  Html(NodeRef<Div>),
-  MathML(NodeRef<Mspace>)
-}
+use leptos::html::Div;
 
 /// Represents the original children some node in the DOM had, to be used in the [`DomChildren`](super::DomChildren), [`DomChildrenCont`](super::DomChildrenCont) and [`DomStringCont`](super::DomStringCont) components.
 #[cfg(any(feature="csr",feature="hydrate"))]
 #[derive(Clone)]
 pub struct OriginalNode{
-  pub(crate) inner: send_wrapper::SendWrapper<Element>,
-  tag:String,
-  signal: OriginalNodeRef
+  pub(crate) inner: send_wrapper::SendWrapper<Element>
 }
 
   // Server side, this is just an empty struct, since there's no DOM anyway.
@@ -30,13 +22,103 @@ impl<E:Into<Element>> From<E> for OriginalNode {
 }
 
 impl OriginalNode {
+  fn new(_e:Element) -> Self {
+    #[cfg(any(feature="csr",feature="hydrate"))]
+    {
+      OriginalNode{
+        inner:send_wrapper::SendWrapper::new(_e.clone()),
+        //signal:std::cell::OnceCell::new()
+      }
+    }
+    #[cfg(not(any(feature="csr",feature="hydrate")))]
+    { OriginalNode{} }
+  }
+
+  #[inline]
+  pub fn into_view(self,on_load:Option<RwSignal<bool>>) -> impl IntoView {
+    #[cfg(any(feature="csr",feature="hydrate"))]
+    let mut inner = self.inner.clone();
+    self.as_view(move |e| {
+      #[cfg(any(feature="csr",feature="hydrate"))]
+      {
+        Self::do_self(&mut inner,e);
+        crate::cleanup((*inner).clone().into());
+        if let Some(on_load) = on_load {on_load.set(true)}
+      }
+    })
+  }
+
+  #[cfg(any(feature="csr",feature="hydrate"))]
+  pub(crate) fn do_self(inner: &mut Element,rf:&Element) {
+    if !rf.insert_before_this(inner) {
+      panic!("ERROR: Failed to insert child node!!");
+    }
+    let Some(p) = rf.parent_element() else { unreachable!() };
+    let _ = p.remove_child(rf);
+  }
+
+  #[cfg(any(feature="csr",feature="hydrate"))]
+  pub(crate) fn do_children(inner: &Element,rf:&Element,mut for_each: impl FnMut(Node)) {
+    //leptos::logging::log!("Current: {}\n",inner.outer_html());
+    while let Some(mut c) = inner.first_child() {
+      if !rf.insert_before_this(&mut c) {
+        panic!("ERROR: Failed to insert child node!!");
+      }
+      //leptos::logging::log!("Attached {}",crate::prettyprint(&c));
+      for_each(c);
+    }
+    let Some(p) = rf.parent_element() else { unreachable!() };
+    let _ = p.remove_child(rf);
+  }
+
+  pub(crate) fn as_view(&self,mut cont:impl FnMut(&mut Element) + 'static) -> impl IntoView {
+    #[cfg(any(feature="csr",feature="hydrate"))]
+    {
+      let mut cont = Some(move |e| on_mount(e,move |e| {
+        cont(e)
+      }));
+      let tag = self.inner.tag_name();
+      if AnyTag::from(&tag).map(AnyTag::is_mathml).unwrap_or_default() {
+        let rf = NodeRef::new();
+        let _ = Effect::new(move |_| {
+          let Some(e):Option<Element> = rf.get() else { return };
+          if let Some(cont) = std::mem::take(&mut cont) { cont(e) }
+        });
+        leptos::either::Either::Left(view! { <mspace node_ref=rf/> })
+      } else {
+        let rf = NodeRef::<Div>::new();
+        let _ = Effect::new(move |_| {
+          if let Some(e) = rf.get() {
+            if let Some(cont) = std::mem::take(&mut cont) { cont(e.into()) }
+          }
+        });
+        leptos::either::Either::Right(view! { <div node_ref=rf/> })
+      }
+    }
+    #[cfg(not(any(feature="csr",feature="hydrate")))]
+    { view! { <div/> } }
+  }
+/*
+  #[cfg(any(feature="csr",feature="hydrate"))]
+  #[inline]
+  fn signal(&self) -> OriginalNodeRef {
+    self.signal.get_or_init(|| {
+      let tag = self.inner.tag_name();
+      if AnyTag::from(&tag).map(AnyTag::is_mathml).unwrap_or_default() {
+        OriginalNodeRef::MathML(NodeRef::new())
+      } else {
+        OriginalNodeRef::Html(NodeRef::new())
+      }
+    }).clone()
+  }
+   */
 
   pub fn deep_clone(&self) -> Self {
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { Self{} }
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
-      use wasm_bindgen::JsCast;
+      use leptos::wasm_bindgen::JsCast;
       Self::new(self.inner.clone_node_with_deep(true)
         .expect("Failed to clone node").dyn_into()
         .unwrap_or_else(|_| unreachable!()))
@@ -58,23 +140,7 @@ impl OriginalNode {
     { String::new() }
   }
 
-  fn new(_e:Element) -> Self {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    {
-      let tag = _e.tag_name();
-      OriginalNode{
-        inner:send_wrapper::SendWrapper::new(_e.clone()),
-        signal:if AnyTag::from(&tag).map(AnyTag::is_mathml).unwrap_or_default(){
-          OriginalNodeRef::MathML(NodeRef::new())
-        } else {
-          OriginalNodeRef::Html(NodeRef::new())
-        },
-        tag
-      }
-    }
-    #[cfg(not(any(feature="csr",feature="hydrate")))]
-    { OriginalNode{} }
-  }
+  /*
   #[cfg(any(feature="csr",feature="hydrate"))]
   pub(crate) fn clone_children(&self) -> Vec<Node> {
     assert!(self.inner.valid());
@@ -85,7 +151,8 @@ impl OriginalNode {
     }
     vec
   }
-
+   */
+/*
   #[inline]
   pub fn tag(&self) -> Option<AnyTag> {
     #[cfg(any(feature="csr",feature="hydrate"))]
@@ -93,17 +160,19 @@ impl OriginalNode {
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { None }
   }
-
+  */
+/*
   #[cfg(any(feature="csr",feature="hydrate"))]
   fn top_view(&self) -> impl IntoView {
     use leptos::either::Either;
 
     match self.signal {
-      OriginalNodeRef::Html(n) => Either::Left(view! { <div node_ref=n/> }),
-      OriginalNodeRef::MathML(n) => Either::Right(view! { <mspace node_ref=n/> }),
+      OriginalNodeRef::Html(n) => Either::Left(view! { <div node_ref=n style="display:none;"/> }),
+      OriginalNodeRef::MathML(n) => Either::Right(view! { <mspace node_ref=n style="display:none;"/> }),
     }
   }
-
+   */
+/*
   #[cfg(any(feature="csr",feature="hydrate"))]
   fn do_effect(self, on_load:Option<RwSignal<bool>>) {
     Effect::new(move |_| {
@@ -121,7 +190,8 @@ impl OriginalNode {
       });
     });
   }
-
+   */
+/*
   #[cfg(any(feature="csr",feature="hydrate"))]
   fn do_children_effect(self, on_load:Option<RwSignal<bool>>) {
     Effect::new(move |_| {
@@ -141,7 +211,8 @@ impl OriginalNode {
       });
     });
   }
-
+   */
+/*
   #[allow(unused_variables)]
   pub fn into_view_cont<V:IntoView+'static>(self,cont:impl Fn(&Element) -> Option<V>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
@@ -154,7 +225,8 @@ impl OriginalNode {
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { view! { <div/> } }
   }
-
+   */
+/*
   #[allow(unused_variables)]
   pub fn into_view(self, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
@@ -166,7 +238,8 @@ impl OriginalNode {
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { view! { <div/> }.into_any() }
   }
-
+ */
+/*
   #[allow(unused_variables)]
   pub fn children_into_view_cont<V:IntoView+'static>(self,cont:impl Fn(&Element) -> Option<V>+'static+Clone, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
@@ -179,7 +252,8 @@ impl OriginalNode {
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { view! { <div/> } }
   }
-
+ */
+/*
   #[allow(unused_variables)]
   pub fn children_into_view(self, on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
@@ -191,8 +265,45 @@ impl OriginalNode {
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { view! { <div/> }.into_any() }
   }
+   */
 }
 
+
+#[cfg(any(feature="csr",feature="hydrate"))]
+pub(crate) fn on_mount(mut node:Element,mut then:impl FnMut(&mut Element) + 'static) {
+  use leptos::wasm_bindgen::JsCast;
+  //let count = OBS_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+  if node.parent_element().is_some() {
+    then(&mut node);
+  } else {
+    //leptos::logging::log!("Not yet parented");
+    let owner = Owner::current().expect("No owner exists");
+    let observer = std::rc::Rc::new(std::cell::Cell::new(Option::<web_sys::MutationObserver>::None));
+    let obs = observer.clone();
+    let callback : leptos::wasm_bindgen::prelude::Closure<dyn FnMut(_,_)> = leptos::wasm_bindgen::closure::Closure::new(
+      move |_: web_sys::js_sys::Array,_:web_sys::MutationObserver| {
+        //leptos::logging::log!("Checking for parent");
+        if node.parent_element().is_some() {
+          //leptos::logging::log!("Finally parented");
+          owner.with(|| then(&mut node));
+          if let Some(o) = obs.take() {
+            //leptos::logging::warn!("Detached observer {count}");
+            o.disconnect();
+          }
+        }
+    });
+    let obs_init = web_sys::MutationObserverInit::new();
+    obs_init.set_child_list(true);
+    obs_init.set_subtree(true);
+    //leptos::logging::warn!("Attached observer {count}");
+    let obs = web_sys::MutationObserver::new(callback.as_ref().unchecked_ref()).expect("Error creating MutationObserver");
+    obs.observe_with_options(&document().body().unwrap(), &obs_init).expect("Error initializing MutationObserver");
+    observer.set(Some(obs));
+    callback.forget();
+  }
+}
+
+/*
 impl Render for OriginalNode {
   type State = Element;
   fn build(self) -> Self::State { 
@@ -230,6 +341,7 @@ impl Mountable for OriginalNode {
     false
   }
 }
+   */
 
 /*
 impl RenderHtml<Dom> for OriginalNode {
@@ -266,12 +378,7 @@ impl AddAnyAttr<Dom> for OriginalNode {
 
 /*
 use leptos::{attr::Attribute,prelude::{RenderHtml,AddAnyAttr,Dom, Render}};
-
-
-
-
 */
-use leptos::html::ElementType;
 
 macro_rules! elems {
   ( $( #[$meta:meta] $htag:ident ),* ==M== $($mtag:ident),* ==S== $($stag:ident),* ) => {
@@ -297,34 +404,6 @@ macro_rules! elems {
         }
       }
     }
-    /*
-    pub enum AnyHtmlElement {
-      $( $htag(::leptos::html::HtmlElement<::leptos::html::$htag,_,_,_>) ),*
-    }*/
-    /*
-    pub enum AnyNodeRef {
-      $( $htag(::leptos::prelude::NodeRef<::leptos::html::$htag>) ),*
-    }
-    */
-
-    /*
-    impl DefinedAt for AnyNodeRef {
-      fn defined_at(&self) -> Option<&'static std::panic::Location<'static>> {
-          match self {
-            $( Self::$htag(r) => r.defined_at() ),*
-          }
-      }
-    }
-    impl WithUntracked for AnyNodeRef {
-      type Value 
-      fn try_with_untracked<U>(&self,fun: impl FnOnce(&Self::Value) -> U)
-       -> Option<U> {
-        match self {
-          $( Self::$htag(r) => r.try_with_untracked(fun) ),*
-        }
-      }
-    }
-    */
   };
 }
 
