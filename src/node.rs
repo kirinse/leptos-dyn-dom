@@ -11,6 +11,12 @@ pub struct OriginalNode{
   pub(crate) inner: send_wrapper::SendWrapper<Element>
 }
 
+#[cfg(any(feature="csr",feature="hydrate"))]
+impl std::ops::Deref for OriginalNode {
+  type Target = Element;
+  fn deref(&self) -> &Self::Target { &self.inner }
+}
+
   // Server side, this is just an empty struct, since there's no DOM anyway.
 #[cfg(not(any(feature="csr",feature="hydrate")))]
 #[derive(Clone)]
