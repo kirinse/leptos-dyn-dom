@@ -13,7 +13,7 @@ pub fn run() {
 #[component]
 fn MainBody(orig: OriginalNode) -> impl IntoView {
     use thaw::ConfigProvider;
-    leptos::logging::log!("Here (body)");
+    //leptos::logging::log!("Here (body)");
     view! {
         <ConfigProvider>
             <DomChildrenCont orig cont=replace/>

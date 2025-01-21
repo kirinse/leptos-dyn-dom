@@ -16,16 +16,6 @@ pub fn hydrate_node<
   hydrate_children(node, replace);
 }
 
-/*
-/// Iterates over the children of a node and replaces elements via the given function.
-#[cfg(any(feature="csr",feature="hydrate"))]
-#[inline]
-pub fn hydrate_children<V:IntoView+'static>(node:Node,replace:&impl Fn(&Element) -> Option<V>) {
-  hydrate_children_i(node,replace);
-}
-   */
-
-
 /// Iterates over the children of a node and replaces elements via the given function.
 #[cfg(any(feature="csr",feature="hydrate"))]
 pub(crate) fn hydrate_children<
@@ -38,6 +28,7 @@ pub(crate) fn hydrate_children<
     current = next;
   }
 }
+
 #[cfg(any(feature="csr",feature="hydrate"))]
 fn next(top:&Node,current: &Node) -> Option<Node> {
   if let Some(c) = current.first_child() {
@@ -45,6 +36,7 @@ fn next(top:&Node,current: &Node) -> Option<Node> {
   }
   next_non_child(top,current)
 }
+
 #[cfg(any(feature="csr",feature="hydrate"))]
 fn next_non_child(top:&Node,current: &Node) -> Option<Node> {
   if let Some(c) = current.next_sibling() {

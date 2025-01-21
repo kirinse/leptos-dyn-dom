@@ -116,39 +116,31 @@ pub fn DomCont<
     V:IntoView+'static,
     R:FnOnce() -> V,
     F:Fn(&Element) -> Option<R>+'static+Send
->(orig:OriginalNode,#[prop(optional)] skip_head:bool,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    let mut inner = orig.inner.clone();
-    orig.as_view(move |e| {
-        #[cfg(any(feature="csr",feature="hydrate"))]
-        {
-            OriginalNode::do_self(&mut inner,e);
-            let node:leptos::web_sys::Node = (*inner).clone().into();
-            if skip_head {
-                crate::cleanup(node.clone());
-                dom::hydrate_children(node, &cont);
-            } else {
-                dom::hydrate_node(node, &cont);
-            }
-            if let Some(on_load) = on_load { on_load.set(true); }
-        }
-    })
+>(orig:OriginalNode,#[prop(optional)] skip_head:bool,cont:F) -> impl IntoView {
+  #[cfg(any(feature="csr",feature="hydrate"))]
+  {orig.as_view(move |e| {
+    if skip_head {
+      dom::hydrate_children(e.clone().into(), &cont);
+    } else  {
+      dom::hydrate_node(e.clone().into(), &cont);
+    }
+  })}
 }
 
 
 /// A component that inserts the  children of some [`OriginalNode`] 
 /// and renders them into the DOM.
 #[component]
-pub fn DomChildren(orig:OriginalNode,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    let inner = orig.inner.clone();
-    orig.as_view(move |e| {
-        #[cfg(any(feature="csr",feature="hydrate"))]
-        {
-            OriginalNode::do_children(&inner, e,cleanup);
-            if let Some(on_load) = on_load { on_load.set(true); }
-        }
-    })
+pub fn DomChildren(orig:OriginalNode) -> impl IntoView {
+   #[cfg(any(feature="csr",feature="hydrate"))]
+   {
+    orig.child_vec().into_iter().map(|c| {
+      match c {
+        leptos::either::Either::Left(c) => leptos::either::Either::Left(c.as_view(|_| ())),
+        leptos::either::Either::Right(c) => leptos::either::Either::Right(c)
+      }
+    }).collect_view()
+  }
 }
 
 /// A component that takes the [`OriginalChildren`] of some preexistent DOM node and a continuation function `f`, and renders them into the DOM. Additionally, `f` is called on every child of the replaced element, to potentially "hydrate" them further.
@@ -156,19 +148,24 @@ pub fn DomChildren(orig:OriginalNode,#[prop(optional)] on_load:Option<RwSignal<b
 pub fn DomChildrenCont<
     V:IntoView+'static,
     R:FnOnce() -> V,
-    F:Fn(&Element) -> Option<R>+'static+Send
->(orig:OriginalNode,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    let inner = orig.inner.clone();
-    orig.as_view(move |e| {
-        #[cfg(any(feature="csr",feature="hydrate"))]
-        {
-            OriginalNode::do_children(&inner, e, 
-                |c| dom::hydrate_node(c.clone(), &cont)
-            );
-            if let Some(on_load) = on_load { on_load.set(true); }
-        }
-    })
+    F:Fn(&Element) -> Option<R>+'static+Send+Clone
+>(orig:OriginalNode,cont:F) -> impl IntoView {
+  #[cfg(any(feature="csr",feature="hydrate"))]
+   {
+    orig.child_vec().into_iter().map(|c| 
+      match c {
+        leptos::either::Either::Left(c) => leptos::either::Either::Left({
+          if let Some(r) = cont(&c) {
+            leptos::either::Either::Left(r())
+          } else {
+            let cont = cont.clone();
+            leptos::either::Either::Right(c.as_view(move |e| dom::hydrate_children(e.clone().into(),&cont)))
+          }
+        }),
+        leptos::either::Either::Right(c) => leptos::either::Either::Right(c)
+      }
+    ).collect_view()
+  }
 }
 
 /// A component that renders a string of valid HTML, and then calls `f` on all the DOM nodes resulting from that to potentially "hydrate" them further.
@@ -179,17 +176,10 @@ pub fn DomStringCont<
     F:Fn(&Element) -> Option<R>+'static
 >(html:String,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
     let rf = NodeRef::<Span>::new();
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    let mut cont = move |e| node::on_mount(e,move |e| {
-        //leptos::logging::log!("Mounting {}",e.outer_html());
-        OriginalNode::do_children(e, e, 
-            |e| dom::hydrate_node(e, &cont)
-        );
-        if let Some(on_load) = on_load { on_load.set(true); }
-    });
-    rf.on_load(|e| {
+    rf.on_load(move |e| {
         #[cfg(any(feature="csr",feature="hydrate"))]
-        cont(e.into());
+        {dom::hydrate_node(e.into(), &cont);}
+        if let Some(on_load) = on_load { on_load.set(true); }
     });
     view!(<span node_ref=rf inner_html=html/>)
 }
@@ -202,17 +192,10 @@ pub fn DomStringContMath<
     F:Fn(&Element) -> Option<R>+'static+Send
 >(html:String,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
     let rf = NodeRef::<Mrow>::new();
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    let mut cont = move |e| node::on_mount(e,move |e| {
-        //leptos::logging::log!("Mounting {}",e.outer_html());
-        OriginalNode::do_children(e, e, 
-            |e| dom::hydrate_node(e, &cont)
-        );
-        if let Some(on_load) = on_load { on_load.set(true); }
-    });
-    rf.on_load(|e| {
+    rf.on_load(move |e| {
         #[cfg(any(feature="csr",feature="hydrate"))]
-        cont(e);
+        {dom::hydrate_node(e.into(), &cont);}
+        if let Some(on_load) = on_load { on_load.set(true); }
     });
     view!(<mrow node_ref=rf inner_html=html/>)
 }
@@ -260,46 +243,6 @@ pub fn hydrate_body<N:IntoView>(
 }
 
 // ------------------------------------------------------------
-
-
-//static OBS_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-/*
-
-#[allow(unused_variables)]
-fn replace_string_effect<V:IntoView+'static,E,F:Fn(&Element) -> Option<V>+'static+Clone>(rf:NodeRef<E>,conv:impl Fn(E::Output) -> Element + 'static,cont:F,signal:Option<RwSignal<bool>>)
-where
-    E: ElementType + 'static,
-    E::Output:leptos::wasm_bindgen::JsCast + Clone + 'static {
-  Effect::new(move |_| if let Some(node) = rf.get() {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    {
-      let node = conv(node);
-      dom::hydrate_children((*node).clone(), &cont);
-      on_mount(node,move |node| {
-        while let Some(mut c) = node.child_nodes().item(0) {
-          if !node.insert_before_this(&mut c) {
-            panic!("ERROR: Failed to insert child node!!");
-          }
-          let c = send_wrapper::SendWrapper::new(c);
-
-          Owner::on_cleanup(move || {
-            leptos::logging::warn!("Trying to cleanup {}",prettyprint(&*c));
-            if let Some(p) = c.parent_element() {
-              let _ = p.remove_child(&c);
-            } else {
-              leptos::logging::warn!("No parent found");
-            }
-          });
-        }
-        if let Some(signal) = signal {signal.set(true); }
-      });
-    }
-  });
-}
-
-
-  */
 
 #[cfg(any(feature="csr",feature="hydrate"))]
 fn cleanup(node:leptos::web_sys::Node) {

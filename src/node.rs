@@ -1,8 +1,5 @@
 use leptos::{prelude::*, web_sys::Element,html::ElementType};
-use leptos::web_sys::Node;
 
-#[cfg(any(feature="csr",feature="hydrate"))]
-use leptos::html::Div;
 
 /// Represents the original children some node in the DOM had, to be used in the [`DomChildren`](super::DomChildren), [`DomChildrenCont`](super::DomChildrenCont) and [`DomStringCont`](super::DomStringCont) components.
 #[cfg(any(feature="csr",feature="hydrate"))]
@@ -22,6 +19,8 @@ impl std::ops::Deref for OriginalNode {
 #[derive(Clone)]
 pub struct OriginalNode {}
 
+pub(crate) struct PlainNode(send_wrapper::SendWrapper<web_sys::Node>);
+
 impl<E:Into<Element>> From<E> for OriginalNode {
   #[inline]
   fn from(value: E) -> Self { Self::new(value.into()) }
@@ -40,6 +39,21 @@ impl OriginalNode {
     { OriginalNode{} }
   }
 
+  #[cfg(any(feature="csr",feature="hydrate"))]
+  pub(crate) fn child_vec(&self) -> Vec<leptos::either::Either<Self,PlainNode>> {
+    use leptos::wasm_bindgen::JsCast;
+    let mut i = 0;
+    let mut ret = Vec::new();
+    while let Some(c) = self.child_nodes().get(i) {
+      i += 1;
+      ret.push(match c.dyn_into::<Element>() {
+        Ok(e) => leptos::either::Either::Left(Self {inner:send_wrapper::SendWrapper::new(e)}),
+        Err(n) => leptos::either::Either::Right(PlainNode(send_wrapper::SendWrapper::new(n)))
+      });
+    }
+    ret
+  } 
+/*
   #[inline]
   pub fn into_view(self,on_load:Option<RwSignal<bool>>) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
@@ -76,40 +90,16 @@ impl OriginalNode {
     let Some(p) = rf.parent_element() else { unreachable!() };
     let _ = p.remove_child(rf);
   }
+   */
 
+   #[inline]
   pub(crate) fn as_view(&self,mut cont:impl FnMut(&mut Element) + 'static + Send) -> impl IntoView {
     #[cfg(any(feature="csr",feature="hydrate"))]
     {
-      let mut cont = Some(move |e| on_mount(e,move |e| {
-        cont(e)
-      }));
-      let tag = self.inner.tag_name();
-      if AnyTag::from(&tag).map(AnyTag::is_mathml).unwrap_or_default() {
-        let rf = NodeRef::new();
-        leptos::either::Either::Left(view! { 
-          {move || {
-            let Some(e):Option<Element> = rf.get() else { return "" };
-            if let Some(cont) = std::mem::take(&mut cont) { cont(e) }
-            ""
-          }}
-          <mspace node_ref=rf/> 
-        })
-      } else {
-        let rf = NodeRef::<Div>::new();
-        //let _ = Effect::new();
-        leptos::either::Either::Right(view! { 
-          {move || {
-            if let Some(e) = rf.get() {
-              if let Some(cont) = std::mem::take(&mut cont) { cont(e.into()) }
-            }
-            ""
-          }}
-          <div node_ref=rf/> 
-        })
-      }
+      let mut slf = self.clone();
+      cont(&mut slf.inner);
+      slf
     }
-    #[cfg(not(any(feature="csr",feature="hydrate")))]
-    { view! { <div/> } }
   }
 
   pub fn deep_clone(&self) -> Self {
@@ -140,7 +130,7 @@ impl OriginalNode {
   }
 }
 
-
+/*
 #[cfg(any(feature="csr",feature="hydrate"))]
 pub(crate) fn on_mount(mut node:Element,mut then:impl FnMut(&mut Element) + 'static) {
   use leptos::wasm_bindgen::JsCast;
@@ -174,11 +164,25 @@ pub(crate) fn on_mount(mut node:Element,mut then:impl FnMut(&mut Element) + 'sta
     callback.forget();
   }
 }
-/*
-mod test {
+  */
+
+mod leptos_impl {
   use leptos::prelude::*;
   use web_sys::Element;
-  use super::OriginalNode;
+  use super::{OriginalNode,PlainNode};
+
+  impl Render for PlainNode {
+    type State = web_sys::Node;
+    #[inline]
+    fn build(self) -> Self::State {
+      #[cfg(any(feature="csr",feature="hydrate"))]
+      { self.0.take() }
+      #[cfg(not(any(feature="csr",feature="hydrate")))]
+      { unreachable!() }
+    }
+    #[inline]
+    fn rebuild(self, _state: &mut Self::State) {}
+  }
 
   impl Render for OriginalNode {
     type State = Element;
@@ -190,43 +194,83 @@ mod test {
       { unreachable!() }
     }
     #[inline]
-    fn rebuild(self, state: &mut Self::State) {}
+    fn rebuild(self, _state: &mut Self::State) {}
   }
-  impl RenderHtml for OriginalNode {
+
+  impl RenderHtml for PlainNode {
     type AsyncOutput = Self;
     const MIN_LENGTH: usize = 0;
-    fn dry_resolve(&mut self) { todo!() }
+    fn dry_resolve(&mut self) { }
     fn resolve(self) -> impl std::future::Future<Output = Self::AsyncOutput> + Send {
-      std::future::ready(todo!())
+      std::future::ready(self)
     }
     fn to_html_with_buf(
             self,
-            buf: &mut String,
-            position: &mut leptos::tachys::view::Position,
-            escape: bool,
-            mark_branches: bool,
-        ) {
-      todo!()
-    }
+            _buf: &mut String,
+            _position: &mut leptos::tachys::view::Position,
+            _escape: bool,
+            _mark_branches: bool,
+        ) {}
+
     fn hydrate<const FROM_SERVER: bool>(
             self,
-            cursor: &leptos::tachys::hydration::Cursor,
-            position: &leptos::tachys::view::PositionState,
+            _cursor: &leptos::tachys::hydration::Cursor,
+            _position: &leptos::tachys::view::PositionState,
         ) -> Self::State {
-        todo!()
+        #[cfg(any(feature="csr",feature="hydrate"))]
+        { self.0.take() }
+        #[cfg(not(any(feature="csr",feature="hydrate")))]
+        { unreachable!() }
     }
   }
+
+  impl RenderHtml for OriginalNode {
+    type AsyncOutput = Self;
+    const MIN_LENGTH: usize = 0;
+    fn dry_resolve(&mut self) { }
+    fn resolve(self) -> impl std::future::Future<Output = Self::AsyncOutput> + Send {
+      std::future::ready(self)
+    }
+    fn to_html_with_buf(
+            self,
+            _buf: &mut String,
+            _position: &mut leptos::tachys::view::Position,
+            _escape: bool,
+            _mark_branches: bool,
+        ) {}
+        
+    fn hydrate<const FROM_SERVER: bool>(
+            self,
+            _cursor: &leptos::tachys::hydration::Cursor,
+            _position: &leptos::tachys::view::PositionState,
+        ) -> Self::State {
+        #[cfg(any(feature="csr",feature="hydrate"))]
+        { self.inner.take() }
+        #[cfg(not(any(feature="csr",feature="hydrate")))]
+        { unreachable!() }
+    }
+  }
+
+  impl AddAnyAttr for PlainNode {
+    type Output<SomeNewAttr: leptos::attr::Attribute> = Self;
+    fn add_any_attr<NewAttr: leptos::attr::Attribute>(
+            self,
+            _attr: NewAttr,
+        ) -> Self::Output<NewAttr> {
+      self
+    }
+  }
+
   impl AddAnyAttr for OriginalNode {
     type Output<SomeNewAttr: leptos::attr::Attribute> = Self;
     fn add_any_attr<NewAttr: leptos::attr::Attribute>(
             self,
             _attr: NewAttr,
         ) -> Self::Output<NewAttr> {
-      todo!()
+      self
     }
   }
 }
-   */
 
 macro_rules! elems {
   ( $( #[$meta:meta] $htag:ident ),* ==M== $($mtag:ident),* ==S== $($stag:ident),* ) => {

@@ -101,7 +101,7 @@ fn MyReplacementComponent(orig: OriginalNode) -> impl IntoView {
         <div><div style="border: 1px solid red;width:fit-content;margin:auto">
           <Popover>
               <PopoverTrigger slot>
-                  <DomChildrenCont orig cont=replace/>
+                  <span><DomChildrenCont orig cont=replace/></span>
               </PopoverTrigger>
               <div style="border: 1px solid black;font-weight:bold;">"IT WORKS!"</div>
           </Popover>
@@ -112,6 +112,6 @@ fn MyReplacementComponent(orig: OriginalNode) -> impl IntoView {
 fn replace(e: &leptos::web_sys::Element) -> Option<impl FnOnce() -> AnyView> {
     e.get_attribute("data-replace-with-leptos").map(|_| {
         let orig = e.clone().into();
-        || view!(<MyReplacementComponent orig/>)
+        || view!(<MyReplacementComponent orig/>).into_any()
     })
 }
