@@ -100,13 +100,14 @@
 mod node;
 mod dom;
 
-pub use node::{OriginalNode,AnyTag};
+pub use node::OriginalNode;
 
 #[cfg(any(feature="csr",feature="hydrate"))]
 pub use dom::hydrate_node;
 
 use leptos::{web_sys::Element, html::Span, math::Mrow, prelude::*};
 use send_wrapper::SendWrapper;
+use web_sys::wasm_bindgen;
 
 /// A component that calls `f` on all children of `orig`
 /// to potentially "hydrate" them further, and reinserts the original

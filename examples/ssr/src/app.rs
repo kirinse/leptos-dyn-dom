@@ -64,10 +64,10 @@ async fn get_some_html() -> Result<String, ServerFnError> {
     Ok(r#"
     <div>
       <div>Some HTML</div>
-      <div data-replace-with-leptos>
+      <div data-replace-with-leptos class="test-class" style="width:fit-content;margin:auto">
           This text should be wrapped in a red border, and, for good measure, show something on hover.<br>
           We can also nest this:
-          <div data-replace-with-leptos>
+          <div data-replace-with-leptos class="test-class" style="width:fit-content;margin:auto">
             Here is another div that should also get bounded the same way
           </div>
           and we're back to the first level.
@@ -97,15 +97,19 @@ fn SomeComplicatedComponent() -> impl IntoView {
 #[component]
 fn MyReplacementComponent(orig: OriginalNode) -> impl IntoView {
     use thaw::*;
+    let cont = view!(<DomCont skip_head=true orig cont=replace/>)
+        .add_any_attr(leptos::tachys::html::style::style("border: 1px solid red"))
+        .add_any_attr(leptos::tachys::html::class::class("foo-bar"))
+        .add_any_attr(leptos::tachys::html::attribute::custom::custom_attribute("data-foo","bar"));
     view! {
-        <div><div style="border: 1px solid red;width:fit-content;margin:auto">
+        //<div><div style="border: 1px solid red;width:fit-content;margin:auto">
           <Popover>
               <PopoverTrigger slot>
-                  <span><DomChildrenCont orig cont=replace/></span>
+                  {cont}
               </PopoverTrigger>
               <div style="border: 1px solid black;font-weight:bold;">"IT WORKS!"</div>
           </Popover>
-       </div></div>
+       //</div></div>
     }
 }
 

@@ -1,11 +1,12 @@
-use leptos::{prelude::*, web_sys::Element,html::ElementType};
+use leptos::{attr::any_attribute::AnyAttribute, html::ElementType, prelude::*, web_sys::Element};
 
 
 /// Represents the original children some node in the DOM had, to be used in the [`DomChildren`](super::DomChildren), [`DomChildrenCont`](super::DomChildrenCont) and [`DomStringCont`](super::DomStringCont) components.
 #[cfg(any(feature="csr",feature="hydrate"))]
 #[derive(Clone)]
 pub struct OriginalNode{
-  pub(crate) inner: send_wrapper::SendWrapper<Element>
+  pub(crate) inner: send_wrapper::SendWrapper<Element>,
+  attrs:Vec<AnyAttribute>
 }
 
 #[cfg(any(feature="csr",feature="hydrate"))]
@@ -32,7 +33,7 @@ impl OriginalNode {
     {
       OriginalNode{
         inner:send_wrapper::SendWrapper::new(_e.clone()),
-        //signal:std::cell::OnceCell::new()
+        attrs:Vec::new()
       }
     }
     #[cfg(not(any(feature="csr",feature="hydrate")))]
@@ -47,50 +48,12 @@ impl OriginalNode {
     while let Some(c) = self.child_nodes().get(i) {
       i += 1;
       ret.push(match c.dyn_into::<Element>() {
-        Ok(e) => leptos::either::Either::Left(Self {inner:send_wrapper::SendWrapper::new(e)}),
+        Ok(e) => leptos::either::Either::Left(Self {inner:send_wrapper::SendWrapper::new(e),attrs:Vec::new()}),
         Err(n) => leptos::either::Either::Right(PlainNode(send_wrapper::SendWrapper::new(n)))
       });
     }
     ret
   } 
-/*
-  #[inline]
-  pub fn into_view(self,on_load:Option<RwSignal<bool>>) -> impl IntoView {
-    #[cfg(any(feature="csr",feature="hydrate"))]
-    let mut inner = self.inner.clone();
-    self.as_view(move |e| {
-      #[cfg(any(feature="csr",feature="hydrate"))]
-      {
-        Self::do_self(&mut inner,e);
-        crate::cleanup((*inner).clone().into());
-        if let Some(on_load) = on_load {on_load.set(true)}
-      }
-    })
-  }
-
-  #[cfg(any(feature="csr",feature="hydrate"))]
-  pub(crate) fn do_self(inner: &mut Element,rf:&Element) {
-    if !rf.insert_before_this(inner) {
-      panic!("ERROR: Failed to insert child node!!");
-    }
-    let Some(p) = rf.parent_element() else { unreachable!() };
-    let _ = p.remove_child(rf);
-  }
-
-  #[cfg(any(feature="csr",feature="hydrate"))]
-  pub(crate) fn do_children(inner: &Element,rf:&Element,mut for_each: impl FnMut(Node)) {
-    //leptos::logging::log!("Current: {}\n",inner.outer_html());
-    while let Some(mut c) = inner.first_child() {
-      if !rf.insert_before_this(&mut c) {
-        panic!("ERROR: Failed to insert child node!!");
-      }
-      //leptos::logging::log!("Attached {}",crate::prettyprint(&c));
-      for_each(c);
-    }
-    let Some(p) = rf.parent_element() else { unreachable!() };
-    let _ = p.remove_child(rf);
-  }
-   */
 
    #[inline]
   pub(crate) fn as_view(&self,mut cont:impl FnMut(&mut Element) + 'static + Send) -> impl IntoView {
@@ -130,44 +93,8 @@ impl OriginalNode {
   }
 }
 
-/*
-#[cfg(any(feature="csr",feature="hydrate"))]
-pub(crate) fn on_mount(mut node:Element,mut then:impl FnMut(&mut Element) + 'static) {
-  use leptos::wasm_bindgen::JsCast;
-  //let count = OBS_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-  if node.parent_element().is_some() {
-    then(&mut node);
-  } else {
-    //leptos::logging::log!("Not yet parented");
-    let owner = Owner::current().expect("No owner exists");
-    let observer = std::rc::Rc::new(std::cell::Cell::new(Option::<web_sys::MutationObserver>::None));
-    let obs = observer.clone();
-    let callback : leptos::wasm_bindgen::prelude::Closure<dyn FnMut(_,_)> = leptos::wasm_bindgen::closure::Closure::new(
-      move |_: web_sys::js_sys::Array,_:web_sys::MutationObserver| {
-        //leptos::logging::log!("Checking for parent");
-        if node.parent_element().is_some() {
-          //leptos::logging::log!("Finally parented");
-          owner.with(|| then(&mut node));
-          if let Some(o) = obs.take() {
-            //leptos::logging::warn!("Detached observer {count}");
-            o.disconnect();
-          }
-        }
-    });
-    let obs_init = web_sys::MutationObserverInit::new();
-    obs_init.set_child_list(true);
-    obs_init.set_subtree(true);
-    //leptos::logging::warn!("Attached observer {count}");
-    let obs = web_sys::MutationObserver::new(callback.as_ref().unchecked_ref()).expect("Error creating MutationObserver");
-    obs.observe_with_options(&document().body().unwrap(), &obs_init).expect("Error initializing MutationObserver");
-    observer.set(Some(obs));
-    callback.forget();
-  }
-}
-  */
-
 mod leptos_impl {
-  use leptos::prelude::*;
+  use leptos::{attr::{any_attribute::AnyAttributeState, Attribute}, prelude::*};
   use web_sys::Element;
   use super::{OriginalNode,PlainNode};
 
@@ -177,19 +104,6 @@ mod leptos_impl {
     fn build(self) -> Self::State {
       #[cfg(any(feature="csr",feature="hydrate"))]
       { self.0.take() }
-      #[cfg(not(any(feature="csr",feature="hydrate")))]
-      { unreachable!() }
-    }
-    #[inline]
-    fn rebuild(self, _state: &mut Self::State) {}
-  }
-
-  impl Render for OriginalNode {
-    type State = Element;
-    #[inline]
-    fn build(self) -> Self::State {
-      #[cfg(any(feature="csr",feature="hydrate"))]
-      { self.inner.take() }
       #[cfg(not(any(feature="csr",feature="hydrate")))]
       { unreachable!() }
     }
@@ -224,11 +138,77 @@ mod leptos_impl {
     }
   }
 
+  impl AddAnyAttr for PlainNode {
+    type Output<SomeNewAttr: leptos::attr::Attribute> = Self;
+    fn add_any_attr<NewAttr: leptos::attr::Attribute>(
+            self,
+            attr: NewAttr,
+        ) -> Self::Output<NewAttr> {
+        let mut buf = String::new();
+        let mut class = String::new();
+        let mut style = String::new();
+        let mut inner_html = String::new();
+        //self.add_any_attr(leptos::tachys::html::property::prop("data-foo","bar"));
+        attr.to_html(&mut buf, &mut class, &mut style, &mut inner_html);
+        leptos::logging::log!("Adding to node: {buf}\n{class}\n{style}\n{inner_html}");
+        self
+    }
+  }
+
+  pub struct MountableNode {
+    inner: Element,
+    attrs: Vec<AnyAttributeState>
+  }
+  impl Mountable for MountableNode {
+    fn mount(
+          &mut self,
+          parent: &leptos::tachys::renderer::types::Element,
+          marker: Option<&leptos::tachys::renderer::types::Node>,
+      ) {
+        self.inner.mount(parent,marker)
+      }
+    fn unmount(&mut self) {
+      self.inner.unmount()
+    }
+    fn insert_before_this(&self, child: &mut dyn Mountable) -> bool {
+      self.inner.insert_before_this(child)
+    }
+  }
+
+  impl Render for OriginalNode {
+    type State = MountableNode;
+    #[inline]
+    fn build(self) -> Self::State {
+      #[cfg(any(feature="csr",feature="hydrate"))]
+      { 
+        let inner = self.inner.take();
+        let attrs = self.attrs.build(&inner);//.into_iter().map(|a| a.build(&inner)).collect();
+        MountableNode { inner, attrs }
+      }
+      #[cfg(not(any(feature="csr",feature="hydrate")))]
+      { unreachable!() }
+    }
+    #[inline]
+    fn rebuild(mut self, state: &mut Self::State) {
+      #[cfg(any(feature="csr",feature="hydrate"))]
+      { 
+        self.attrs.rebuild(&mut state.attrs);//.into_iter().zip(state.attrs.iter_mut()).for_each(|(a,s)| a.rebuild(s));
+      }
+      #[cfg(not(any(feature="csr",feature="hydrate")))]
+      { unreachable!() }
+    }
+  }
+
   impl RenderHtml for OriginalNode {
     type AsyncOutput = Self;
     const MIN_LENGTH: usize = 0;
-    fn dry_resolve(&mut self) { }
-    fn resolve(self) -> impl std::future::Future<Output = Self::AsyncOutput> + Send {
+    fn dry_resolve(&mut self) {
+      #[cfg(any(feature="csr",feature="hydrate"))]
+      {
+        for a in self.attrs.iter_mut() { a.dry_resolve();}
+      }
+    }
+    fn resolve(mut self) -> impl std::future::Future<Output = Self::AsyncOutput> + Send {
       std::future::ready(self)
     }
     fn to_html_with_buf(
@@ -245,33 +225,73 @@ mod leptos_impl {
             _position: &leptos::tachys::view::PositionState,
         ) -> Self::State {
         #[cfg(any(feature="csr",feature="hydrate"))]
-        { self.inner.take() }
+        { self.inner.take();todo!() }
         #[cfg(not(any(feature="csr",feature="hydrate")))]
         { unreachable!() }
-    }
-  }
-
-  impl AddAnyAttr for PlainNode {
-    type Output<SomeNewAttr: leptos::attr::Attribute> = Self;
-    fn add_any_attr<NewAttr: leptos::attr::Attribute>(
-            self,
-            _attr: NewAttr,
-        ) -> Self::Output<NewAttr> {
-      self
     }
   }
 
   impl AddAnyAttr for OriginalNode {
     type Output<SomeNewAttr: leptos::attr::Attribute> = Self;
     fn add_any_attr<NewAttr: leptos::attr::Attribute>(
-            self,
-            _attr: NewAttr,
-        ) -> Self::Output<NewAttr> {
-      self
+          mut self,
+          attr: NewAttr,
+      ) -> Self::Output<NewAttr> {
+        use leptos::wasm_bindgen::JsCast;
+        use leptos::tachys::html::attribute::any_attribute::IntoAnyAttribute;
+
+        #[cfg(any(feature="csr",feature="hydrate"))]
+        {
+          let name = std::any::type_name_of_val(&attr);
+          if name.starts_with("tachys::html::style::Style") {
+            if let Some(orig_style) = self.inner.get_attribute("style") {
+              if orig_style.is_empty() {
+                self.attrs.push(attr.into_any_attr());
+              } else {
+                let mut buf = String::new();
+                let mut class = String::new();
+                let mut style = String::new();
+                let mut inner_html = String::new();
+                attr.to_html(&mut buf, &mut class, &mut style, &mut inner_html);
+                if !style.ends_with(';') {
+                  style.push(';')
+                }
+                style.push_str(&orig_style);
+                let _ = self.inner.set_attribute("style",&style);
+                self.attrs.push(leptos::tachys::html::style::style(style).into_any_attr());
+              }
+            } else {
+              self.attrs.push(attr.into_any_attr());
+            }
+          } else if name.starts_with("tachys::html::class::Class") {
+            if let Some(orig_cls) = self.inner.get_attribute("class") {
+              if orig_cls.trim().is_empty() {
+                self.attrs.push(attr.into_any_attr());
+              } else {
+                let mut buf = String::new();
+                let mut class = String::new();
+                let mut style = String::new();
+                let mut inner_html = String::new();
+                attr.to_html(&mut buf, &mut class, &mut style, &mut inner_html);
+                if !class.is_empty() && !class.ends_with(' ') {
+                  class.push(' ');
+                }
+                class.push_str(orig_cls.trim());
+                let _ = self.inner.set_attribute("class",&class);
+                self.attrs.push(leptos::tachys::html::class::class(class).into_any_attr());
+              }
+            } else {
+              self.attrs.push(attr.into_any_attr());
+            }
+          } else {
+            self.attrs.push(attr.into_any_attr());
+          }
+        }
+        self
     }
   }
 }
-
+/*
 macro_rules! elems {
   ( $( #[$meta:meta] $htag:ident ),* ==M== $($mtag:ident),* ==S== $($stag:ident),* ) => {
     #[derive(Copy,Clone,Hash,PartialEq, Eq)]
@@ -628,3 +648,4 @@ elems! {
   Tspan,
   View
 }
+   */

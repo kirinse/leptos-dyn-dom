@@ -26,15 +26,20 @@ fn MyReplacementComponent<Ch: IntoView + 'static>(children: TypedChildren<Ch>) -
     use thaw::*;
     let children = children.into_inner();
     view! {
-        <div><div style="border: 1px solid red;width:fit-content;margin:auto">
+        //<div><div style="border: 1px solid red;width:fit-content;margin:auto">
           <Popover>
               <PopoverTrigger slot>
-                  {children()}
+                  {
+                    children()
+                        .add_any_attr(leptos::tachys::html::style::style("border: 1px solid red"))
+                        .add_any_attr(leptos::tachys::html::class::class("foo-bar"))
+                        .add_any_attr(leptos::tachys::html::attribute::custom::custom_attribute("data-foo","bar"))
+                  }
                   //<DomChildrenCont orig cont=replace/>
               </PopoverTrigger>
               <div style="border: 1px solid black;font-weight:bold;">"IT WORKS!"</div>
           </Popover>
-       </div></div>
+       //</div></div>
     }
 }
 
@@ -43,7 +48,7 @@ fn replace(e: &Element) -> Option<impl FnOnce() -> AnyView> {
         let orig: OriginalNode = e.clone().into();
         || {
             view!(<MyReplacementComponent>
-            <DomChildrenCont orig cont=replace/>
+            <DomCont orig cont=replace skip_head=true/>
         </MyReplacementComponent>)
             .into_any()
         }
