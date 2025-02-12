@@ -22,19 +22,31 @@ fn MainBody(orig: OriginalNode) -> impl IntoView {
 }
 
 #[component]
-fn MyReplacementComponent<Ch: IntoView + 'static>(children: TypedChildren<Ch>) -> impl IntoView {
+fn MyReplacementComponent<Ch: IntoView + 'static>(children: TypedChildrenMut<Ch>) -> impl IntoView {
     use thaw::*;
-    let children = children.into_inner();
+    let mut children = children.into_inner();
+    let show_class = RwSignal::new("foo-bar");
+    let on_click = move |_| {
+        show_class.update(|s| {
+            if *s == "foo-bar" {
+                *s = "moo"
+            } else {
+                *s = "foo-bar"
+            }
+        })
+    };
     view! {
+        <button on:click=on_click>{"Switch classes"}</button>
         //<div><div style="border: 1px solid red;width:fit-content;margin:auto">
           <Popover>
               <PopoverTrigger slot>
-                  {
+                  <span style="display:contents">{move || {
+                    leptos::logging::log!("Rendering children");
                     children()
                         .add_any_attr(leptos::tachys::html::style::style("border: 1px solid red"))
-                        .add_any_attr(leptos::tachys::html::class::class("foo-bar"))
+                        .add_any_attr(leptos::tachys::html::class::class(show_class))
                         .add_any_attr(leptos::tachys::html::attribute::custom::custom_attribute("data-foo","bar"))
-                  }
+                  }}</span>
                   //<DomChildrenCont orig cont=replace/>
               </PopoverTrigger>
               <div style="border: 1px solid black;font-weight:bold;">"IT WORKS!"</div>
@@ -47,8 +59,12 @@ fn replace(e: &Element) -> Option<impl FnOnce() -> AnyView> {
     e.get_attribute("data-replace-with-leptos").map(|_| {
         let orig: OriginalNode = e.clone().into();
         || {
+            leptos::web_sys::console::log_2(
+                &leptos::wasm_bindgen::JsValue::from_str("Hydrating node"),
+                &orig,
+            );
             view!(<MyReplacementComponent>
-            <DomCont orig cont=replace skip_head=true/>
+            <DomCont orig=orig.clone() cont=replace skip_head=true/>
         </MyReplacementComponent>)
             .into_any()
         }

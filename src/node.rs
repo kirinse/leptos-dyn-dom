@@ -6,7 +6,9 @@ use leptos::{attr::any_attribute::AnyAttribute, html::ElementType, prelude::*, w
 #[derive(Clone)]
 pub struct OriginalNode{
   pub(crate) inner: send_wrapper::SendWrapper<Element>,
-  attrs:Vec<AnyAttribute>
+  attrs:Vec<AnyAttribute>,
+  orig_style:std::sync::Arc<std::sync::Mutex<Option<String>>>,
+  orig_classes:std::sync::Arc<std::sync::Mutex<Option<String>>>
 }
 
 #[cfg(any(feature="csr",feature="hydrate"))]
@@ -33,7 +35,9 @@ impl OriginalNode {
     {
       OriginalNode{
         inner:send_wrapper::SendWrapper::new(_e.clone()),
-        attrs:Vec::new()
+        attrs:Vec::new(),
+        orig_style:std::sync::Arc::new(std::sync::Mutex::new(None)),
+        orig_classes:std::sync::Arc::new(std::sync::Mutex::new(None)),
       }
     }
     #[cfg(not(any(feature="csr",feature="hydrate")))]
@@ -48,7 +52,12 @@ impl OriginalNode {
     while let Some(c) = self.child_nodes().get(i) {
       i += 1;
       ret.push(match c.dyn_into::<Element>() {
-        Ok(e) => leptos::either::Either::Left(Self {inner:send_wrapper::SendWrapper::new(e),attrs:Vec::new()}),
+        Ok(e) => leptos::either::Either::Left(Self {
+          inner:send_wrapper::SendWrapper::new(e),
+          attrs:Vec::new(),
+          orig_style:std::sync::Arc::new(std::sync::Mutex::new(None)),
+          orig_classes:std::sync::Arc::new(std::sync::Mutex::new(None)),
+        }),
         Err(n) => leptos::either::Either::Right(PlainNode(send_wrapper::SendWrapper::new(n)))
       });
     }
@@ -91,6 +100,62 @@ impl OriginalNode {
     #[cfg(not(any(feature="csr",feature="hydrate")))]
     { String::new() }
   }
+
+  #[cfg(any(feature="csr",feature="hydrate"))]
+  fn style_attr<NewAttr: leptos::attr::Attribute>(attr:NewAttr,orig_style:&mut Option<String>,e:&leptos::web_sys::Element) -> leptos::tachys::html::attribute::any_attribute::AnyAttribute {
+    use leptos::tachys::html::attribute::any_attribute::IntoAnyAttribute;
+    if orig_style.is_none() {
+      if let Some(o) = e.get_attribute("style") {
+        *orig_style = Some(o);
+      } else {
+        *orig_style = Some(String::new());
+      };
+    }
+    let orig_style = orig_style.as_ref().unwrap_or_else(|| unreachable!()).trim();
+    if orig_style.is_empty() {
+      return attr.into_any_attr();
+    }
+    
+    let mut buf = String::new();
+    let mut class = String::new();
+    let mut style = String::new();
+    let mut inner_html = String::new();
+    attr.to_html(&mut buf, &mut class, &mut style, &mut inner_html);
+    if !style.ends_with(';') {
+      style.push(';');
+    }
+    style.push_str(orig_style);
+    leptos::tachys::html::style::style(style).into_any_attr()//.build(e);
+  }
+
+  #[cfg(any(feature="csr",feature="hydrate"))]
+  fn class_attr<NewAttr: leptos::attr::Attribute>(attr:NewAttr,orig_classes:&mut Option<String>,e:&leptos::web_sys::Element) -> leptos::tachys::html::attribute::any_attribute::AnyAttribute {
+    use leptos::tachys::html::attribute::any_attribute::IntoAnyAttribute;
+    //let mut orig_classes = self.orig_classes.lock().expect("Failed to lock classes");
+    if orig_classes.is_none() {
+      if let Some(o) = e.get_attribute("class") {
+        *orig_classes = Some(o);
+      } else {
+        *orig_classes = Some(String::new());
+      };
+    }
+    let orig_classes = orig_classes.as_ref().unwrap_or_else(|| unreachable!()).trim();
+    if orig_classes.is_empty() {
+      return attr.into_any_attr();
+    }
+    
+    let mut buf = String::new();
+    let mut class = String::new();
+    let mut style = String::new();
+    let mut inner_html = String::new();
+    attr.to_html(&mut buf, &mut class, &mut style, &mut inner_html);
+    if !class.ends_with(' ') {
+      class.push(' ');
+    }
+    class.push_str(orig_classes);
+    leptos::tachys::html::class::class(class).into_any_attr()//.build(e);
+  }
+
 }
 
 mod leptos_impl {
@@ -144,13 +209,7 @@ mod leptos_impl {
             self,
             attr: NewAttr,
         ) -> Self::Output<NewAttr> {
-        let mut buf = String::new();
-        let mut class = String::new();
-        let mut style = String::new();
-        let mut inner_html = String::new();
-        //self.add_any_attr(leptos::tachys::html::property::prop("data-foo","bar"));
-        attr.to_html(&mut buf, &mut class, &mut style, &mut inner_html);
-        leptos::logging::log!("Adding to node: {buf}\n{class}\n{style}\n{inner_html}");
+        //leptos::logging::log!("Adding to node: {buf}\n{class}\n{style}\n{inner_html}");
         self
     }
   }
@@ -165,9 +224,20 @@ mod leptos_impl {
           parent: &leptos::tachys::renderer::types::Element,
           marker: Option<&leptos::tachys::renderer::types::Node>,
       ) {
+        //use leptos::wasm_bindgen::JsCast;
+        /*leptos::web_sys::console::log_4(
+          &leptos::wasm_bindgen::JsValue::from_str( "Mounting node"),
+          &self.inner,
+          &leptos::wasm_bindgen::JsValue::from_str( "to"),
+          parent
+        );*/
         self.inner.mount(parent,marker)
       }
     fn unmount(&mut self) {
+      /*leptos::web_sys::console::log_2(
+        &leptos::wasm_bindgen::JsValue::from_str( "Unmounting node"),
+        &self.inner
+      );*/
       self.inner.unmount()
     }
     fn insert_before_this(&self, child: &mut dyn Mountable) -> bool {
@@ -179,20 +249,53 @@ mod leptos_impl {
     type State = MountableNode;
     #[inline]
     fn build(self) -> Self::State {
+      //use leptos::wasm_bindgen::JsCast;
       #[cfg(any(feature="csr",feature="hydrate"))]
       { 
+        /*leptos::web_sys::console::log_2(
+          &leptos::wasm_bindgen::JsValue::from_str( "Building"),
+          &self.inner
+        );*/
         let inner = self.inner.take();
-        let attrs = self.attrs.build(&inner);//.into_iter().map(|a| a.build(&inner)).collect();
+        let attrs = self.attrs.into_iter().map(|a| {
+          if is_style(&a) {
+            Self::style_attr(a, &mut self.orig_style.lock().expect("failed to lock style"), &inner)
+              .build(&inner)
+          } else if is_class(&a) {
+            Self::class_attr(a, &mut self.orig_classes.lock().expect("failed to lock class"), &inner)
+              .build(&inner)
+          } else {
+            a.build(&inner)
+          }
+        }).collect();
+        //let attrs = self.attrs.build(&inner);//.into_iter().map(|a| a.build(&inner)).collect();
+        //leptos::web_sys::console::log_1(&leptos::wasm_bindgen::JsValue::from_str("Done building"));
         MountableNode { inner, attrs }
       }
       #[cfg(not(any(feature="csr",feature="hydrate")))]
       { unreachable!() }
     }
     #[inline]
-    fn rebuild(mut self, state: &mut Self::State) {
+    fn rebuild(self, state: &mut Self::State) {
       #[cfg(any(feature="csr",feature="hydrate"))]
       { 
-        self.attrs.rebuild(&mut state.attrs);//.into_iter().zip(state.attrs.iter_mut()).for_each(|(a,s)| a.rebuild(s));
+        /*leptos::web_sys::console::log_2(
+          &leptos::wasm_bindgen::JsValue::from_str( "Rebuilding"),
+          &self.inner
+        );*/
+        for (a,s) in self.attrs.into_iter().zip(state.attrs.iter_mut()) {
+          if is_style(&a) {
+            Self::style_attr(a, &mut self.orig_style.lock().expect("failed to lock style"), &self.inner)
+              .rebuild(s);
+          } else if is_class(&a) {
+            Self::class_attr(a, &mut self.orig_classes.lock().expect("failed to lock class"), &self.inner)
+              .rebuild(s);
+          } else {
+            a.rebuild(s);
+          }
+        }
+        //self.attrs.rebuild(&mut state.attrs);//.into_iter().zip(state.attrs.iter_mut()).for_each(|(a,s)| a.rebuild(s));
+        //leptos::web_sys::console::log_1(&leptos::wasm_bindgen::JsValue::from_str("Done rebuilding"));
       }
       #[cfg(not(any(feature="csr",feature="hydrate")))]
       { unreachable!() }
@@ -208,7 +311,7 @@ mod leptos_impl {
         for a in self.attrs.iter_mut() { a.dry_resolve();}
       }
     }
-    fn resolve(mut self) -> impl std::future::Future<Output = Self::AsyncOutput> + Send {
+    fn resolve(self) -> impl std::future::Future<Output = Self::AsyncOutput> + Send {
       std::future::ready(self)
     }
     fn to_html_with_buf(
@@ -237,58 +340,34 @@ mod leptos_impl {
           mut self,
           attr: NewAttr,
       ) -> Self::Output<NewAttr> {
-        use leptos::wasm_bindgen::JsCast;
         use leptos::tachys::html::attribute::any_attribute::IntoAnyAttribute;
 
         #[cfg(any(feature="csr",feature="hydrate"))]
         {
+          /*leptos::web_sys::console::log_1(&leptos::wasm_bindgen::JsValue::from_str("Adding attribute"));
           let name = std::any::type_name_of_val(&attr);
           if name.starts_with("tachys::html::style::Style") {
-            if let Some(orig_style) = self.inner.get_attribute("style") {
-              if orig_style.is_empty() {
-                self.attrs.push(attr.into_any_attr());
-              } else {
-                let mut buf = String::new();
-                let mut class = String::new();
-                let mut style = String::new();
-                let mut inner_html = String::new();
-                attr.to_html(&mut buf, &mut class, &mut style, &mut inner_html);
-                if !style.ends_with(';') {
-                  style.push(';')
-                }
-                style.push_str(&orig_style);
-                let _ = self.inner.set_attribute("style",&style);
-                self.attrs.push(leptos::tachys::html::style::style(style).into_any_attr());
-              }
-            } else {
-              self.attrs.push(attr.into_any_attr());
-            }
+            self.add_style(attr);
           } else if name.starts_with("tachys::html::class::Class") {
-            if let Some(orig_cls) = self.inner.get_attribute("class") {
-              if orig_cls.trim().is_empty() {
-                self.attrs.push(attr.into_any_attr());
-              } else {
-                let mut buf = String::new();
-                let mut class = String::new();
-                let mut style = String::new();
-                let mut inner_html = String::new();
-                attr.to_html(&mut buf, &mut class, &mut style, &mut inner_html);
-                if !class.is_empty() && !class.ends_with(' ') {
-                  class.push(' ');
-                }
-                class.push_str(orig_cls.trim());
-                let _ = self.inner.set_attribute("class",&class);
-                self.attrs.push(leptos::tachys::html::class::class(class).into_any_attr());
-              }
-            } else {
-              self.attrs.push(attr.into_any_attr());
-            }
-          } else {
+            self.add_class(attr);
+          } else {*/
             self.attrs.push(attr.into_any_attr());
-          }
+          //}
         }
         self
     }
+  }
+
+  #[cfg(any(feature="csr",feature="hydrate"))]
+  fn is_style<Attr:leptos::attr::Attribute>(attr:&Attr) -> bool {
+    let name = std::any::type_name_of_val(&attr);
+    name.starts_with("tachys::html::style::Style")
+  }
+
+  #[cfg(any(feature="csr",feature="hydrate"))]
+  fn is_class<Attr:leptos::attr::Attribute>(attr:&Attr) -> bool {
+    let name = std::any::type_name_of_val(&attr);
+    name.starts_with("tachys::html::class::Class")
   }
 }
 /*

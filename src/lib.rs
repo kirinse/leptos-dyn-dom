@@ -117,15 +117,23 @@ pub fn DomCont<
     V:IntoView+'static,
     R:FnOnce() -> V,
     F:Fn(&Element) -> Option<R>+'static+Send
->(orig:OriginalNode,#[prop(optional)] skip_head:bool,cont:F) -> impl IntoView {
+>(orig:OriginalNode,#[prop(optional)] skip_head:bool,cont:F,
+  #[prop(optional, into)] class: MaybeProp<String>,
+  #[prop(optional, into)] style: MaybeProp<String>,
+) -> impl IntoView {
   #[cfg(any(feature="csr",feature="hydrate"))]
-  {orig.as_view(move |e| {
+  {
+    let orig = orig
+      .add_any_attr(leptos::tachys::html::class::class(move || class.get()))
+      .add_any_attr(leptos::tachys::html::style::style(move || style.get()));
+    orig.as_view(move |e| {
     if skip_head {
       dom::hydrate_children(e.clone().into(), &cont);
     } else  {
       dom::hydrate_node(e.clone().into(), &cont);
     }
-  })}
+  })
+}
 }
 
 
@@ -175,30 +183,54 @@ pub fn DomStringCont<
     V:IntoView+'static,
     R:FnOnce() -> V,
     F:Fn(&Element) -> Option<R>+'static
->(html:String,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
+>(html:String,cont:F,
+  #[prop(optional)] on_load:Option<RwSignal<bool>>,
+  #[prop(optional, into)] class: MaybeProp<String>,
+  #[prop(optional, into)] style: MaybeProp<String>,
+) -> impl IntoView {
     let rf = NodeRef::<Span>::new();
     rf.on_load(move |e| {
         #[cfg(any(feature="csr",feature="hydrate"))]
-        {dom::hydrate_node(e.into(), &cont);}
+        {dom::hydrate_children(e.into(), &cont);}
         if let Some(on_load) = on_load { on_load.set(true); }
     });
-    view!(<span node_ref=rf inner_html=html/>)
+    view!(<span node_ref=rf inner_html=html 
+      class=move || class.get() style=move || style.get()
+    />)
+    //s.add_any_attr(leptos::tachys::html::class::class(class)).add_any_attr(leptos::tachys::html::style::style(style))
 }
 
 /// Like [`DomStringCont`], but using `<mrow>` instead of `<span>`.
 #[component]
 pub fn DomStringContMath<
     V:IntoView+'static,
-    R:FnOnce() -> V,
-    F:Fn(&Element) -> Option<R>+'static+Send
->(html:String,cont:F,#[prop(optional)] on_load:Option<RwSignal<bool>>) -> impl IntoView {
+    R:FnOnce() -> V + 'static,
+    F:Fn(&Element) -> Option<R>+'static+Send+Clone
+>(html:String,cont:F,
+    #[prop(optional)] on_load:Option<RwSignal<bool>>,
+    #[prop(optional, into)] class: MaybeProp<String>,
+    #[prop(optional, into)] style: MaybeProp<String>,
+) -> impl IntoView {
+    use leptos::wasm_bindgen::JsCast;
+    /*leptos::web_sys::console::log_2(
+      &wasm_bindgen::JsValue::from_str("DomStringContMath"),
+      &wasm_bindgen::JsValue::from_str(&html),
+    );*/
     let rf = NodeRef::<Mrow>::new();
+    let cnt = cont.clone();
+    let single_element = RwSignal::<Option<send_wrapper::SendWrapper<leptos::web_sys::Element>>>::new(None);
     rf.on_load(move |e| {
+      /*leptos::web_sys::console::log_2(
+        &wasm_bindgen::JsValue::from_str("DomStringContMath loaded"),
+        &e,
+      );*/
         #[cfg(any(feature="csr",feature="hydrate"))]
-        {dom::hydrate_node(e.into(), &cont);}
+        {
+          dom::hydrate_children(e.into(), &cnt);
+        }
         if let Some(on_load) = on_load { on_load.set(true); }
     });
-    view!(<mrow node_ref=rf inner_html=html/>)
+    view!(<mrow node_ref=rf inner_html=html class=move || class.get() style=move || style.get()/>)
 }
 
 

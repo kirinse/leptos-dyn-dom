@@ -64,6 +64,9 @@ fn check_node<
   F:Fn(&Element) -> Option<R>+'static
 >(node:&Node,top:&Node,replace:&F) -> (bool,Option<Node>) {
   //leptos::logging::log!("Checking: {}",crate::prettyprint(node));
+
+  use send_wrapper::SendWrapper;
+  use leptos::wasm_bindgen::JsCast;
   if let Some(e) = node.dyn_ref::<Element>() {
     if let Some(v) = replace(e) {
       let p = e.parent_element().unwrap();
@@ -71,9 +74,10 @@ fn check_node<
       let ret = next_non_child(top, node);
       //leptos::logging::log!("Triggered! Parent: {:?}",p.outer_html());
       e.remove();
+      let ne:SendWrapper<Element> = send_wrapper::SendWrapper::new(e.clone_node_with_deep(true).expect("Element disappeared").dyn_into().unwrap_or_else(|_| unreachable!()));
       //leptos::logging::log!("Next: {:?}",next.as_ref().map(crate::prettyprint));
       let owner = Owner::new();
-      owner.with(|| {
+      owner.with(move || {
           let mut r = v().into_view().build();
           if let Some(e) = next.as_ref() {
             e.insert_before_this(&mut r);
@@ -81,7 +85,20 @@ fn check_node<
             r.mount(&p,None);
           }
           let mut r = send_wrapper::SendWrapper::new(r);
-          Owner::on_cleanup(|| {r.unmount();drop(r)});
+          let p = send_wrapper::SendWrapper::new(p);
+          let next = send_wrapper::SendWrapper::new(next);
+          Owner::on_cleanup(move || {
+            /*leptos::web_sys::console::log_2(
+                &leptos::wasm_bindgen::JsValue::from_str("Cleaning up former"),
+                &ne,
+            );*/
+            r.unmount();drop(r);
+            if let Some(e) = next.take().as_ref() {
+              e.insert_before_this(&mut ne.take());
+            } else {
+              ne.take().mount(&p.take(),None);
+            }
+          });
       });
       Owner::on_cleanup(move || drop(owner));
       return (true,ret);
