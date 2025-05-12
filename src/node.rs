@@ -28,7 +28,9 @@ impl std::ops::Deref for OriginalNode {
 #[derive(Clone)]
 pub struct OriginalNode {}
 
-pub(crate) struct PlainNode(send_wrapper::SendWrapper<web_sys::Node>);
+pub(crate) struct PatchedNode(web_sys::Node);
+
+pub(crate) struct PlainNode(send_wrapper::SendWrapper<PatchedNode>);
 
 impl<E: Into<Element>> From<E> for OriginalNode {
     #[inline]
@@ -69,7 +71,7 @@ impl OriginalNode {
                     orig_classes: std::sync::Arc::new(std::sync::Mutex::new(None)),
                 }),
                 Err(n) => {
-                    leptos::either::Either::Right(PlainNode(send_wrapper::SendWrapper::new(n)))
+                    leptos::either::Either::Right(PlainNode(send_wrapper::SendWrapper::new(PatchedNode(n))))
                 }
             });
         }
@@ -211,8 +213,31 @@ mod leptos_impl {
     #[cfg(any(feature = "csr", feature = "hydrate"))]
     use leptos::attr::Attribute;
 
+    impl Mountable for super::PatchedNode {
+      fn mount(
+              &mut self,
+              parent: &leptos::tachys::renderer::types::Element,
+              marker: Option<&leptos::tachys::renderer::types::Node>,
+          ) {
+          self.0.mount(parent,marker)
+      }
+      fn unmount(&mut self) {
+          if let Some(n) = self.0.parent_node() {
+            let _ = n.remove_child(&n);
+          }
+      }
+      fn insert_before_this(&self, child: &mut dyn Mountable) -> bool {
+          self.0.insert_before_this(child)
+      }
+      fn elements(&self) -> Vec<leptos::tachys::renderer::types::Element> {
+          self.0.elements()
+      }
+  
+    }
+  
+
     impl Render for PlainNode {
-        type State = web_sys::Node;
+        type State = super::PatchedNode;
         #[inline]
         fn build(self) -> Self::State {
             #[cfg(any(feature = "csr", feature = "hydrate"))]
