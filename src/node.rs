@@ -1,4 +1,9 @@
-use leptos::{attr::any_attribute::AnyAttribute, html::ElementType, prelude::*, web_sys::Element};
+#![allow(unused_variables)]
+#![allow(unused_mut)]
+
+use leptos::{prelude::*, web_sys::Element};
+#[cfg(any(feature = "csr", feature = "hydrate"))]
+use leptos::attr::any_attribute::AnyAttribute;
 
 /// Represents the original children some node in the DOM had, to be used in the [`DomChildren`](super::DomChildren), [`DomChildrenCont`](super::DomChildrenCont) and [`DomStringCont`](super::DomStringCont) components.
 #[cfg(any(feature = "csr", feature = "hydrate"))]
@@ -72,6 +77,7 @@ impl OriginalNode {
     }
 
     #[inline]
+    #[allow(unused_mut)]
     pub(crate) fn as_view(
         &self,
         mut cont: impl FnMut(&mut Element) + 'static + Send,
@@ -197,11 +203,13 @@ mod leptos_impl {
     use leptos::{
         attr::{
             any_attribute::{AnyAttribute, AnyAttributeState},
-            Attribute,
+            //Attribute,
         },
         prelude::*,
     };
     use web_sys::Element;
+    #[cfg(any(feature = "csr", feature = "hydrate"))]
+    use leptos::attr::Attribute;
 
     impl Render for PlainNode {
         type State = web_sys::Node;
@@ -220,52 +228,12 @@ mod leptos_impl {
         fn rebuild(self, _state: &mut Self::State) {}
     }
 
-    impl RenderHtml for PlainNode {
-        type AsyncOutput = Self;
-        type Owned = Self;
-
-        fn into_owned(self) -> Self::Owned {
-            self
-        }
-
-        const MIN_LENGTH: usize = 0;
-        fn dry_resolve(&mut self) {}
-        fn resolve(self) -> impl std::future::Future<Output = Self::AsyncOutput> + Send {
-            std::future::ready(self)
-        }
-        fn to_html_with_buf(
-            self,
-            _: &mut String,
-            _: &mut leptos::tachys::view::Position,
-            _: bool,
-            _: bool,
-            _: Vec<AnyAttribute>,
-        ) {
-        }
-
-        fn hydrate<const FROM_SERVER: bool>(
-            self,
-            _cursor: &leptos::tachys::hydration::Cursor,
-            _position: &leptos::tachys::view::PositionState,
-        ) -> Self::State {
-            #[cfg(any(feature = "csr", feature = "hydrate"))]
-            {
-                self.0.take()
-            }
-            #[cfg(not(any(feature = "csr", feature = "hydrate")))]
-            {
-                unreachable!()
-            }
-        }
-    }
-
     impl AddAnyAttr for PlainNode {
         type Output<SomeNewAttr: leptos::attr::Attribute> = Self;
         fn add_any_attr<NewAttr: leptos::attr::Attribute>(
             self,
             _: NewAttr,
         ) -> Self::Output<NewAttr> {
-            //leptos::logging::log!("Adding to node: {buf}\n{class}\n{style}\n{inner_html}");
             self
         }
     }
@@ -280,20 +248,9 @@ mod leptos_impl {
             parent: &leptos::tachys::renderer::types::Element,
             marker: Option<&leptos::tachys::renderer::types::Node>,
         ) {
-            //use leptos::wasm_bindgen::JsCast;
-            /*leptos::web_sys::console::log_4(
-              &leptos::wasm_bindgen::JsValue::from_str( "Mounting node"),
-              &self.inner,
-              &leptos::wasm_bindgen::JsValue::from_str( "to"),
-              parent
-            );*/
             self.inner.mount(parent, marker)
         }
         fn unmount(&mut self) {
-            /*leptos::web_sys::console::log_2(
-              &leptos::wasm_bindgen::JsValue::from_str( "Unmounting node"),
-              &self.inner
-            );*/
             self.inner.unmount()
         }
         fn insert_before_this(&self, child: &mut dyn Mountable) -> bool {
@@ -308,13 +265,8 @@ mod leptos_impl {
         type State = MountableNode;
         #[inline]
         fn build(self) -> Self::State {
-            //use leptos::wasm_bindgen::JsCast;
             #[cfg(any(feature = "csr", feature = "hydrate"))]
             {
-                /*leptos::web_sys::console::log_2(
-                  &leptos::wasm_bindgen::JsValue::from_str( "Building"),
-                  &self.inner
-                );*/
                 let inner = self.inner.take();
                 let attrs = self
                     .attrs
@@ -339,8 +291,6 @@ mod leptos_impl {
                         }
                     })
                     .collect();
-                //let attrs = self.attrs.build(&inner);//.into_iter().map(|a| a.build(&inner)).collect();
-                //leptos::web_sys::console::log_1(&leptos::wasm_bindgen::JsValue::from_str("Done building"));
                 MountableNode { inner, attrs }
             }
             #[cfg(not(any(feature = "csr", feature = "hydrate")))]
@@ -352,10 +302,6 @@ mod leptos_impl {
         fn rebuild(self, state: &mut Self::State) {
             #[cfg(any(feature = "csr", feature = "hydrate"))]
             {
-                /*leptos::web_sys::console::log_2(
-                  &leptos::wasm_bindgen::JsValue::from_str( "Rebuilding"),
-                  &self.inner
-                );*/
                 for (a, s) in self.attrs.into_iter().zip(state.attrs.iter_mut()) {
                     if is_style(&a) {
                         Self::style_attr(
@@ -375,14 +321,39 @@ mod leptos_impl {
                         a.rebuild(s);
                     }
                 }
-                //self.attrs.rebuild(&mut state.attrs);//.into_iter().zip(state.attrs.iter_mut()).for_each(|(a,s)| a.rebuild(s));
-                //leptos::web_sys::console::log_1(&leptos::wasm_bindgen::JsValue::from_str("Done rebuilding"));
             }
             #[cfg(not(any(feature = "csr", feature = "hydrate")))]
             {
                 unreachable!()
             }
         }
+    }
+
+    impl AddAnyAttr for OriginalNode {
+        type Output<SomeNewAttr: leptos::attr::Attribute> = Self;
+        fn add_any_attr<NewAttr: leptos::attr::Attribute>(
+            mut self,
+            attr: NewAttr,
+        ) -> Self::Output<NewAttr> {
+            #[cfg(any(feature = "csr", feature = "hydrate"))]
+            {
+                use leptos::tachys::html::attribute::any_attribute::IntoAnyAttribute;
+                self.attrs.push(attr.into_any_attr());
+            }
+            self
+        }
+    }
+
+    #[cfg(any(feature = "csr", feature = "hydrate"))]
+    fn is_style<Attr: leptos::attr::Attribute>(attr: &Attr) -> bool {
+        let name = std::any::type_name_of_val(&attr);
+        name.starts_with("tachys::html::style::Style")
+    }
+
+    #[cfg(any(feature = "csr", feature = "hydrate"))]
+    fn is_class<Attr: leptos::attr::Attribute>(attr: &Attr) -> bool {
+        let name = std::any::type_name_of_val(&attr);
+        name.starts_with("tachys::html::class::Class")
     }
 
     impl RenderHtml for OriginalNode {
@@ -430,40 +401,44 @@ mod leptos_impl {
         }
     }
 
-    impl AddAnyAttr for OriginalNode {
-        type Output<SomeNewAttr: leptos::attr::Attribute> = Self;
-        fn add_any_attr<NewAttr: leptos::attr::Attribute>(
-            mut self,
-            attr: NewAttr,
-        ) -> Self::Output<NewAttr> {
-            use leptos::tachys::html::attribute::any_attribute::IntoAnyAttribute;
+    // basically unreachable, because only relevant in SSR
+    impl RenderHtml for PlainNode {
+        type AsyncOutput = Self;
+        type Owned = Self;
 
-            #[cfg(any(feature = "csr", feature = "hydrate"))]
-            {
-                /*leptos::web_sys::console::log_1(&leptos::wasm_bindgen::JsValue::from_str("Adding attribute"));
-                let name = std::any::type_name_of_val(&attr);
-                if name.starts_with("tachys::html::style::Style") {
-                  self.add_style(attr);
-                } else if name.starts_with("tachys::html::class::Class") {
-                  self.add_class(attr);
-                } else {*/
-                self.attrs.push(attr.into_any_attr());
-                //}
-            }
+        fn into_owned(self) -> Self::Owned {
             self
         }
-    }
 
-    #[cfg(any(feature = "csr", feature = "hydrate"))]
-    fn is_style<Attr: leptos::attr::Attribute>(attr: &Attr) -> bool {
-        let name = std::any::type_name_of_val(&attr);
-        name.starts_with("tachys::html::style::Style")
-    }
+        const MIN_LENGTH: usize = 0;
+        fn dry_resolve(&mut self) {}
+        fn resolve(self) -> impl std::future::Future<Output = Self::AsyncOutput> + Send {
+            std::future::ready(self)
+        }
+        fn to_html_with_buf(
+            self,
+            _: &mut String,
+            _: &mut leptos::tachys::view::Position,
+            _: bool,
+            _: bool,
+            _: Vec<AnyAttribute>,
+        ) {
+        }
 
-    #[cfg(any(feature = "csr", feature = "hydrate"))]
-    fn is_class<Attr: leptos::attr::Attribute>(attr: &Attr) -> bool {
-        let name = std::any::type_name_of_val(&attr);
-        name.starts_with("tachys::html::class::Class")
+        fn hydrate<const FROM_SERVER: bool>(
+            self,
+            _cursor: &leptos::tachys::hydration::Cursor,
+            _position: &leptos::tachys::view::PositionState,
+        ) -> Self::State {
+            #[cfg(any(feature = "csr", feature = "hydrate"))]
+            {
+                self.0.take()
+            }
+            #[cfg(not(any(feature = "csr", feature = "hydrate")))]
+            {
+                unreachable!()
+            }
+        }
     }
 }
 /*

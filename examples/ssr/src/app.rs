@@ -76,7 +76,7 @@ async fn get_some_html() -> Result<String, ServerFnError> {
     </div>"#.to_string())
 }
 
-use leptos_dyn_dom::*;
+use leptos_hindsight::*;
 
 #[component]
 fn SomeComplicatedComponent() -> impl IntoView {

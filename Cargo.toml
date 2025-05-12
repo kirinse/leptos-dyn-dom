@@ -1,5 +1,5 @@
 [package]
-name = "leptos-dyn-dom"
+name = "leptos-hindsight"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,6 +9,13 @@ hydrate = ["leptos/hydrate"]
 ssr = []
 
 [dependencies]
-web-sys = { version="0", features = ["Document", "Element","NodeList","MutationObserver","MutationObserverInit","MutationRecord"] }
-leptos = { version = "0.8.0-rc1" }
-send_wrapper = "0.6.0"
+web-sys = { version = "0", features = [
+    "Document",
+    "Element",
+    "NodeList",
+    "MutationObserver",
+    "MutationObserverInit",
+    "MutationRecord",
+] }
+leptos = { version = "0.8" }
+send_wrapper = "0.6"

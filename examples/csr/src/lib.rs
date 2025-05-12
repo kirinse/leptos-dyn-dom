@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos::web_sys::Element;
 use wasm_bindgen::prelude::*;
 
-use leptos_dyn_dom::*;
+use leptos_hindsight::*;
 
 #[wasm_bindgen(start)]
 pub fn run() {
@@ -38,16 +38,16 @@ fn MyReplacementComponent<Ch: IntoView + 'static>(children: TypedChildrenMut<Ch>
     view! {
         <button on:click=on_click>{"Switch classes"}</button>
         //<div><div style="border: 1px solid red;width:fit-content;margin:auto">
-        <div style="width:fit-content;">
+        <div style="width:fit-content;margin:auto;">
           <Popover>
               <PopoverTrigger slot>
-                  <span style="display:contents">{move || {
+                  <div>{move || {
                     leptos::logging::log!("Rendering children");
                     children()
                         .add_any_attr(leptos::tachys::html::style::style("border: 1px solid red;width:fit-content;margin:auto;"))
                         .add_any_attr(leptos::tachys::html::class::class(show_class))
                         .add_any_attr(leptos::tachys::html::attribute::custom::custom_attribute("data-foo","bar"))
-                  }}</span>
+                  }}</div>
                   //<DomChildrenCont orig cont=replace/>
               </PopoverTrigger>
               <div style="border: 1px solid black;font-weight:bold;">"IT WORKS!"</div>
