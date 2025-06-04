@@ -1,9 +1,9 @@
 #![allow(unused_variables)]
 #![allow(unused_mut)]
 
-use leptos::{prelude::*, web_sys::Element};
 #[cfg(any(feature = "csr", feature = "hydrate"))]
 use leptos::attr::any_attribute::AnyAttribute;
+use leptos::{prelude::*, web_sys::Element};
 
 /// Represents the original children some node in the DOM had, to be used in the [`DomChildren`](super::DomChildren), [`DomChildrenCont`](super::DomChildrenCont) and [`DomStringCont`](super::DomStringCont) components.
 #[cfg(any(feature = "csr", feature = "hydrate"))]
@@ -70,9 +70,9 @@ impl OriginalNode {
                     orig_style: std::sync::Arc::new(std::sync::Mutex::new(None)),
                     orig_classes: std::sync::Arc::new(std::sync::Mutex::new(None)),
                 }),
-                Err(n) => {
-                    leptos::either::Either::Right(PlainNode(send_wrapper::SendWrapper::new(PatchedNode(n))))
-                }
+                Err(n) => leptos::either::Either::Right(PlainNode(send_wrapper::SendWrapper::new(
+                    PatchedNode(n),
+                ))),
             });
         }
         ret
@@ -80,15 +80,15 @@ impl OriginalNode {
 
     #[inline]
     #[allow(unused_mut)]
-    pub(crate) fn as_view(
+    pub(crate) fn as_view<F: FnMut(&mut Element) + 'static + Send>(
         &self,
-        mut cont: impl FnMut(&mut Element) + 'static + Send,
-    ) -> impl IntoView {
+        mut cont: F,
+    ) -> impl IntoView + use<F> {
         #[cfg(any(feature = "csr", feature = "hydrate"))]
         {
             let mut slf = self.clone();
             cont(&mut slf.inner);
-            slf
+            return slf;
         }
     }
 
@@ -202,6 +202,8 @@ impl OriginalNode {
 
 mod leptos_impl {
     use super::{OriginalNode, PlainNode};
+    #[cfg(any(feature = "csr", feature = "hydrate"))]
+    use leptos::attr::Attribute;
     use leptos::{
         attr::{
             any_attribute::{AnyAttribute, AnyAttributeState},
@@ -210,31 +212,27 @@ mod leptos_impl {
         prelude::*,
     };
     use web_sys::Element;
-    #[cfg(any(feature = "csr", feature = "hydrate"))]
-    use leptos::attr::Attribute;
 
     impl Mountable for super::PatchedNode {
-      fn mount(
-              &mut self,
-              parent: &leptos::tachys::renderer::types::Element,
-              marker: Option<&leptos::tachys::renderer::types::Node>,
-          ) {
-          self.0.mount(parent,marker)
-      }
-      fn unmount(&mut self) {
-          if let Some(n) = self.0.parent_node() {
-            let _ = n.remove_child(&n);
-          }
-      }
-      fn insert_before_this(&self, child: &mut dyn Mountable) -> bool {
-          self.0.insert_before_this(child)
-      }
-      fn elements(&self) -> Vec<leptos::tachys::renderer::types::Element> {
-          self.0.elements()
-      }
-  
+        fn mount(
+            &mut self,
+            parent: &leptos::tachys::renderer::types::Element,
+            marker: Option<&leptos::tachys::renderer::types::Node>,
+        ) {
+            self.0.mount(parent, marker)
+        }
+        fn unmount(&mut self) {
+            if let Some(n) = self.0.parent_node() {
+                let _ = n.remove_child(&n);
+            }
+        }
+        fn insert_before_this(&self, child: &mut dyn Mountable) -> bool {
+            self.0.insert_before_this(child)
+        }
+        fn elements(&self) -> Vec<leptos::tachys::renderer::types::Element> {
+            self.0.elements()
+        }
     }
-  
 
     impl Render for PlainNode {
         type State = super::PatchedNode;

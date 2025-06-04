@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos::web_sys::Element;
 use wasm_bindgen::prelude::*;
 
-use leptos_hindsight::*;
+use leptos_posthoc::*;
 
 #[wasm_bindgen(start)]
 pub fn run() {

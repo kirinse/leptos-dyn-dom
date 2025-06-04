@@ -76,7 +76,7 @@ async fn get_some_html() -> Result<String, ServerFnError> {
     </div>"#.to_string())
 }
 
-use leptos_hindsight::*;
+use leptos_posthoc::*;
 
 #[component]
 fn SomeComplicatedComponent() -> impl IntoView {
@@ -100,7 +100,9 @@ fn MyReplacementComponent(orig: OriginalNode) -> impl IntoView {
     let cont = view!(<DomCont skip_head=true orig cont=replace/>)
         .add_any_attr(leptos::tachys::html::style::style("border: 1px solid red"))
         .add_any_attr(leptos::tachys::html::class::class("foo-bar"))
-        .add_any_attr(leptos::tachys::html::attribute::custom::custom_attribute("data-foo","bar"));
+        .add_any_attr(leptos::tachys::html::attribute::custom::custom_attribute(
+            "data-foo", "bar",
+        ));
     view! {
         //<div><div style="border: 1px solid red;width:fit-content;margin:auto">
           <Popover>

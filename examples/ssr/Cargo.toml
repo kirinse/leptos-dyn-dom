@@ -21,11 +21,11 @@ thiserror = "2"
 tracing = { version = "0.1", optional = true }
 http = "1"
 
-leptos-hindsight = { path = "../../", version = "0.1.0" }
+leptos-posthoc = { path = "../../", version = "0.1.0" }
 thaw = "0.5.0-beta"
 
 [features]
-hydrate = ["leptos/hydrate", "leptos-hindsight/hydrate", "thaw/hydrate"]
+hydrate = ["leptos/hydrate", "leptos-posthoc/hydrate", "thaw/hydrate"]
 ssr = [
     "dep:axum",
     "dep:tokio",

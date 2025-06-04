@@ -1,7 +1,14 @@
 [package]
-name = "leptos-hindsight"
+name = "leptos-posthoc"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+authors = ["Dennis Müller <d.mueller@kwarc.info>"]
+description = "A crate for dynamically hydrating static/opaque HTML using leptos components"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/FlexiFormal/leptos-posthoc"
+keywords = ["leptos", "hydrate", "HTML"]
+readme = "README.md"
+exclude = [".idea/*", ".zed/*", "examples/*", "target/*"]
 
 [features]
 csr = ["leptos/csr"]

@@ -7,14 +7,17 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [profile.release]
-opt-level = 2
+opt-level = 3
 lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
 [dependencies]
-leptos-hindsight = { path = "../../", version = "0.1.0", features = ["csr"] }
+leptos-posthoc = { path = "../../", version = "0.1.0", features = ["csr"] }
 
 wasm-bindgen = "0.2"
 leptos = { version = "0.8", features = ["csr"] }
