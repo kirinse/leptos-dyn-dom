@@ -1,6 +1,6 @@
 [package]
 name = "leptos-posthoc"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 authors = ["Dennis Müller <d.mueller@kwarc.info>"]
 description = "A crate for dynamically hydrating static/opaque HTML using leptos components"

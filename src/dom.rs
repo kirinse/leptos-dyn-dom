@@ -1,63 +1,81 @@
-#[cfg(any(feature = "csr", feature = "hydrate"))]
 use leptos::wasm_bindgen::JsCast;
-#[cfg(any(feature = "csr", feature = "hydrate"))]
 use leptos::{
+    IntoView,
     prelude::{Mountable, Owner, Render},
     web_sys::{Element, Node},
-    IntoView,
 };
 
 /// Iterates over the node and its children (DFS) and replaces elements via the given function.
-#[cfg(any(feature = "csr", feature = "hydrate"))]
 pub fn hydrate_node<
     V: IntoView + 'static,
     R: FnOnce() -> V,
-    F: Fn(&Element) -> Option<R> + 'static,
+    G: FnOnce() + 'static,
+    F: Fn(&Element) -> (Option<R>, Option<G>) + 'static + Send,
 >(
     node: Node,
     replace: &F,
 ) {
+    let mut thens = Vec::with_capacity(1);
+    let (r, _) = check_node(&node, &node, replace, &mut thens);
     // Check node returns a new index if it replaced the node, otherwise None.
-    if check_node(&node, &node, replace).0 {
+    if r {
         return;
     }
     crate::cleanup(node.clone());
     hydrate_children(node, replace);
+    if let Some(then) = thens.pop().flatten() {
+        then();
+    }
 }
 
 /// Iterates over the children of a node and replaces elements via the given function.
-#[cfg(any(feature = "csr", feature = "hydrate"))]
 pub(crate) fn hydrate_children<
     V: IntoView + 'static,
     R: FnOnce() -> V,
-    F: Fn(&Element) -> Option<R> + 'static,
+    G: FnOnce() + 'static,
+    F: Fn(&Element) -> (Option<R>, Option<G>) + 'static + Send,
 >(
     node: Node,
     replace: &F,
 ) {
+    let mut continues: Vec<Option<G>> = Vec::new();
     let Some(mut current) = node.first_child() else {
         return;
     };
-    while let (_, Some(next)) = check_node(&current, &node, replace) {
+    while let (_, Some(next)) = check_node(&current, &node, replace, &mut continues) {
         current = next;
     }
 }
 
-#[cfg(any(feature = "csr", feature = "hydrate"))]
-fn next(top: &Node, current: &Node) -> Option<Node> {
+fn next<G: FnOnce() + 'static>(
+    top: &Node,
+    current: &Node,
+    then: Option<G>,
+    continues: &mut Vec<Option<G>>,
+) -> Option<Node> {
     if let Some(c) = current.first_child() {
+        continues.push(then);
         return Some(c);
     }
-    next_non_child(top, current)
+    if let Some(then) = then {
+        then();
+    }
+    next_non_child(top, current, continues)
 }
 
-#[cfg(any(feature = "csr", feature = "hydrate"))]
-fn next_non_child(top: &Node, current: &Node) -> Option<Node> {
+fn next_non_child<G: FnOnce() + 'static>(
+    top: &Node,
+    current: &Node,
+    continues: &mut Vec<Option<G>>,
+) -> Option<Node> {
     if let Some(c) = current.next_sibling() {
         return Some(c);
     }
     let mut current = current.clone();
     loop {
+        if let Some(then) = continues.pop().flatten() {
+            then()
+        }
         if let Some(p) = current.parent_node() {
             if p == *top {
                 return None;
@@ -73,20 +91,25 @@ fn next_non_child(top: &Node, current: &Node) -> Option<Node> {
 }
 
 // Actually replaces nodes:
-#[cfg(any(feature = "csr", feature = "hydrate"))]
-fn check_node<V: IntoView + 'static, R: FnOnce() -> V, F: Fn(&Element) -> Option<R> + 'static>(
+fn check_node<
+    V: IntoView + 'static,
+    R: FnOnce() -> V,
+    G: FnOnce() + 'static,
+    F: Fn(&Element) -> (Option<R>, Option<G>) + 'static + Send,
+>(
     node: &Node,
     top: &Node,
     replace: &F,
+    continues: &mut Vec<Option<G>>,
 ) -> (bool, Option<Node>) {
     //leptos::logging::log!("Checking: {}",crate::prettyprint(node));
 
     use send_wrapper::SendWrapper;
     if let Some(e) = node.dyn_ref::<Element>() {
-        if let Some(v) = replace(e) {
+        let (r, then) = replace(e);
+        if let Some(v) = r {
             let p = e.parent_element().unwrap();
             let next = e.next_sibling();
-            let ret = next_non_child(top, node);
             //leptos::logging::log!("Triggered! Parent: {:?}",p.outer_html());
             e.remove();
             let ne: SendWrapper<Element> = send_wrapper::SendWrapper::new(
@@ -122,8 +145,15 @@ fn check_node<V: IntoView + 'static, R: FnOnce() -> V, F: Fn(&Element) -> Option
                 });
             });
             Owner::on_cleanup(move || drop(owner));
-            return (true, ret);
+            if let Some(then) = then {
+                then();
+            }
+            let ret = next_non_child(top, node, continues);
+            (true, ret)
+        } else {
+            (false, next(top, node, then, continues))
         }
+    } else {
+        (false, next::<G>(top, node, None, continues))
     }
-    (false, next(top, node))
 }

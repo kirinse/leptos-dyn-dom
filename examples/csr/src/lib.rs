@@ -57,18 +57,27 @@ fn MyReplacementComponent<Ch: IntoView + 'static>(children: TypedChildrenMut<Ch>
     }
 }
 
-fn replace(e: &Element) -> Option<impl FnOnce() -> AnyView> {
-    e.get_attribute("data-replace-with-leptos").map(|_| {
-        let orig: OriginalNode = e.clone().into();
-        || {
-            leptos::web_sys::console::log_2(
-                &leptos::wasm_bindgen::JsValue::from_str("Hydrating node"),
-                &orig,
-            );
-            view!(<MyReplacementComponent>
+fn replace(e: &Element) -> (Option<impl FnOnce() -> AnyView>, Option<impl FnOnce()>) {
+    let node = e.clone();
+    leptos::logging::log!("open");
+    leptos::web_sys::console::log_1(&node);
+    (
+        e.get_attribute("data-replace-with-leptos").map(|_| {
+            let orig: OriginalNode = e.clone().into();
+            || {
+                leptos::web_sys::console::log_2(
+                    &leptos::wasm_bindgen::JsValue::from_str("Hydrating node"),
+                    &orig,
+                );
+                view!(<MyReplacementComponent>
             <DomCont orig=orig.clone() cont=replace skip_head=true/>
         </MyReplacementComponent>)
-            .into_any()
-        }
-    })
+                .into_any()
+            }
+        }),
+        Some(move || {
+            leptos::logging::log!("close");
+            leptos::web_sys::console::log_1(&node);
+        }),
+    )
 }

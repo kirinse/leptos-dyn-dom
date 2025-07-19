@@ -1,8 +1,8 @@
 use leptos::prelude::*;
-use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
+use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
-    components::{Route, Router, Routes},
     StaticSegment,
+    components::{Route, Router, Routes},
 };
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -115,9 +115,20 @@ fn MyReplacementComponent(orig: OriginalNode) -> impl IntoView {
     }
 }
 
-fn replace(e: &leptos::web_sys::Element) -> Option<impl FnOnce() -> AnyView> {
-    e.get_attribute("data-replace-with-leptos").map(|_| {
-        let orig = e.clone().into();
-        || view!(<MyReplacementComponent orig/>).into_any()
-    })
+fn replace(
+    e: &leptos::web_sys::Element,
+) -> (Option<impl FnOnce() -> AnyView>, Option<impl FnOnce()>) {
+    let node = e.clone();
+    leptos::logging::log!("open");
+    leptos::web_sys::console::log_1(&node);
+    (
+        e.get_attribute("data-replace-with-leptos").map(|_| {
+            let orig = e.clone().into();
+            || view!(<MyReplacementComponent orig/>).into_any()
+        }),
+        Some(move || {
+            leptos::logging::log!("close");
+            leptos::web_sys::console::log_1(&node);
+        }),
+    )
 }
