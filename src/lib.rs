@@ -225,7 +225,7 @@ pub fn DomStringCont<
 ) -> impl IntoView {
     let rf = NodeRef::<Span>::new();
     rf.on_load(move |e| {
-        dom::hydrate_children(e.into(), &cont);
+        dom::hydrate_node(e.into(), &cont);
         if let Some(on_load) = on_load {
             on_load.set(true);
         }
@@ -312,7 +312,7 @@ pub fn hydrate_body<N: IntoView>(v: impl FnOnce(OriginalNode) -> N + 'static) {
 }
 
 // ------------------------------------------------------------
-
+/*
 fn cleanup(node: leptos::web_sys::Node) {
     let c = send_wrapper::SendWrapper::new(node);
     Owner::on_cleanup(move || {
@@ -321,3 +321,4 @@ fn cleanup(node: leptos::web_sys::Node) {
         }
     });
 }
+ */

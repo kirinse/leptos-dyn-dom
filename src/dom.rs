@@ -1,3 +1,4 @@
+use leptos::tachys::reactive_graph::OwnedView;
 use leptos::wasm_bindgen::JsCast;
 use leptos::{
     IntoView,
@@ -21,7 +22,7 @@ pub fn hydrate_node<
     if r {
         return;
     }
-    crate::cleanup(node.clone());
+    //crate::cleanup(node.clone());
     hydrate_children(node, replace);
     if let Some(then) = thens.pop().flatten() {
         then();
@@ -60,33 +61,38 @@ fn next<G: FnOnce() + 'static>(
     if let Some(then) = then {
         then();
     }
-    next_non_child(top, current, continues)
+    let (r, thens) = next_non_child(top, current, continues);
+    for then in thens {
+        then()
+    }
+    r
 }
 
 fn next_non_child<G: FnOnce() + 'static>(
     top: &Node,
     current: &Node,
     continues: &mut Vec<Option<G>>,
-) -> Option<Node> {
+) -> (Option<Node>, Vec<G>) {
+    let mut thens = Vec::new();
     if let Some(c) = current.next_sibling() {
-        return Some(c);
+        return (Some(c), thens);
     }
     let mut current = current.clone();
     loop {
         if let Some(then) = continues.pop().flatten() {
-            then()
+            thens.push(then)
         }
         if let Some(p) = current.parent_node() {
             if p == *top {
-                return None;
+                return (None, thens);
             }
             if let Some(c) = p.next_sibling() {
-                return Some(c);
+                return (Some(c), thens);
             }
             current = p;
             continue;
         }
-        return None;
+        return (None, thens);
     }
 }
 
@@ -108,8 +114,28 @@ fn check_node<
     if let Some(e) = node.dyn_ref::<Element>() {
         let (r, then) = replace(e);
         if let Some(v) = r {
-            let p = e.parent_element().unwrap();
-            let next = e.next_sibling();
+            let parent = e.parent_element().unwrap();
+            let next_sibling = e.next_sibling();
+            let (ret, thens) = next_non_child(top, node, continues);
+            let owner = Owner::current().expect("not in a reactive context").child();
+            let v = owner.with(v);
+            let mut r = OwnedView::new_with_owner(v, owner.clone()).build();
+            if let Some(e) = next_sibling.as_ref() {
+                e.insert_before_this(&mut r);
+            } else {
+                r.mount(&parent, None);
+            }
+            let r = send_wrapper::SendWrapper::new(r);
+            Owner::on_cleanup(move || drop(r));
+            if let Some(then) = then {
+                owner.with(then);
+            }
+            for then in thens {
+                then();
+            }
+            (true, ret)
+
+            /*
             //leptos::logging::log!("Triggered! Parent: {:?}",p.outer_html());
             e.remove();
             let ne: SendWrapper<Element> = send_wrapper::SendWrapper::new(
@@ -150,6 +176,7 @@ fn check_node<
             }
             let ret = next_non_child(top, node, continues);
             (true, ret)
+            */
         } else {
             (false, next(top, node, then, continues))
         }
