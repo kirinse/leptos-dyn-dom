@@ -146,8 +146,8 @@ pub fn DomCont<
     #[prop(optional, into)] style: MaybeProp<String>,
 ) -> impl IntoView {
     let orig = orig
-        .add_any_attr(leptos::tachys::html::class::class(move || class.get()))
-        .add_any_attr(leptos::tachys::html::style::style(move || style.get()));
+        .add_any_attr(leptos::tachys::html::class::class(move || class.try_get()))
+        .add_any_attr(leptos::tachys::html::style::style(move || style.try_get()));
     orig.as_view(move |e| {
         if skip_head {
             dom::hydrate_children(e.clone().into(), &cont);
@@ -231,7 +231,7 @@ pub fn DomStringCont<
         }
     });
     view!(<span node_ref=rf inner_html=html
-      class=move || class.get() style=move || style.get()
+      class=move || class.try_get() style=move || style.try_get()
     />)
 }
 
@@ -260,7 +260,7 @@ pub fn DomStringContMath<
             on_load.set(true);
         }
     });
-    view!(<mrow node_ref=rf inner_html=html class=move || class.get() style=move || style.get()/>)
+    view!(<mrow node_ref=rf inner_html=html class=move || class.try_get() style=move || style.try_get()/>)
 }
 
 // need some check to not iterate over the entire body multiple times for some reason.

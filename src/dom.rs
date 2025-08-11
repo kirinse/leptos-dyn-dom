@@ -109,8 +109,6 @@ fn check_node<
     continues: &mut Vec<Option<G>>,
 ) -> (bool, Option<Node>) {
     //leptos::logging::log!("Checking: {}",crate::prettyprint(node));
-
-    use send_wrapper::SendWrapper;
     if let Some(e) = node.dyn_ref::<Element>() {
         let (r, then) = replace(e);
         if let Some(v) = r {
