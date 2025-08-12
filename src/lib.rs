@@ -287,6 +287,7 @@ pub fn hydrate_body<N: IntoView>(v: impl FnOnce(OriginalNode) -> N + 'static) {
         let nd = leptos::tachys::dom::document()
             .create_element("div")
             .expect("Error creating div");
+        nd.style("display:contents;");
         while let Some(c) = body.child_nodes().get(0) {
             nd.append_child(&c).expect("Error appending child");
         }
